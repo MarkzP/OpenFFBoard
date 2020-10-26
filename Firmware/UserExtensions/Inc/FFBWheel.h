@@ -18,6 +18,7 @@
 #include "LocalButtons.h"
 #include "SPIButtons.h"
 #include "EncoderLocal.h"
+#include "MotorMPM.h"
 
 #include "cppmain.h"
 #include "HidFFB.h"

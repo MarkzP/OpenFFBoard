@@ -37,6 +37,7 @@ const std::vector<class_entry<MotorDriver>> motor_sources =
 		add_class<MotorDriver,MotorDriver>(),
 		add_class<TMC4671,MotorDriver>(),
 		add_class<MotorPWM,MotorDriver>(),
+		add_class<MotorMPM,MotorDriver>(),
 };
 // 0-63 valid ids
 std::vector<class_entry<Encoder>> encoder_sources =
