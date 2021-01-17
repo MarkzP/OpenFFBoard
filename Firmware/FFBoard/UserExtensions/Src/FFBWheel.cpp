@@ -57,6 +57,7 @@ const std::vector<class_entry<MotorDriver>> motor_sources =
 #ifdef PWMDRIVER
 		add_class<MotorPWM,MotorDriver>(),
 #endif
+		add_class<MotorMPM,MotorDriver>(),
 };
 // 0-63 valid ids
 std::vector<class_entry<Encoder>> encoder_sources =

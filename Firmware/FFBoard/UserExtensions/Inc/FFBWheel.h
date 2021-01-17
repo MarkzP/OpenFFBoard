@@ -20,6 +20,7 @@
 #include "EncoderLocal.h"
 #include "LocalAnalog.h"
 #include "AnalogSource.h"
+#include "MotorMPM.h"
 
 #include "cppmain.h"
 #include "HidFFB.h"

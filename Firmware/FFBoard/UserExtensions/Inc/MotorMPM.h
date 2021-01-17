@@ -10,10 +10,11 @@
 
 #include <MotorDriver.h>
 #include <Encoder.h>
+#include <TimerHandler.h>
 #include <CommandHandler.h>
 
 
-class MotorMPM: public MotorDriver, public Encoder, public CommandHandler {
+class MotorMPM: public MotorDriver, public Encoder, public TimerHandler, public CommandHandler {
 public:
 	MotorMPM();
 	virtual ~MotorMPM();
@@ -30,6 +31,8 @@ public:
 
 	uint32_t getCpr(); // Encoder counts per rotation
 
+	void timerElapsed(TIM_HandleTypeDef* htim);
+
 	ParseStatus command(ParsedCommand* cmd,std::string* reply);
 
 	void saveFlash();
@@ -44,7 +47,12 @@ private:
 	int32_t offset;
 	uint8_t aligned;
 
-	void spiRxTx();
+	TIM_HandleTypeDef* timer_update;
+	SPI_HandleTypeDef *spi;
+	GPIO_TypeDef *csport;
+	uint16_t cspin;
+
+	void update();
 };
 
 #endif /* MOTORMPM_H_ */
