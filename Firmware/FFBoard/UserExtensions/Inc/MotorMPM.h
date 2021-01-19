@@ -45,7 +45,8 @@ private:
 	int32_t position;
 	int32_t rotation;
 	int32_t offset;
-	uint8_t aligned;
+	bool aligned;
+	bool initialized = false;
 
 	TIM_HandleTypeDef* timer_update;
 	SPI_HandleTypeDef *spi;

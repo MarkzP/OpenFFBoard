@@ -48,11 +48,11 @@ MotorMPM::MotorMPM()
 	spi->Init.CLKPolarity = SPI_POLARITY_LOW;
 	spi->Init.CLKPhase = SPI_PHASE_1EDGE;
 	spi->Init.FirstBit = SPI_FIRSTBIT_LSB;
-	spi->Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
+	spi->Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
 
 	HAL_SPI_Init(spi);
 
-	//__HAL_SPI_ENABLE(spi);
+	initialized = true;
 }
 
 
@@ -156,7 +156,7 @@ void MotorMPM::restoreFlash()
 
 void MotorMPM::update()
 {
-	if ((spi->Instance->SR & SPI_SR_BSY) == SPI_SR_BSY)
+	if (!initialized || (spi->Instance->SR & SPI_SR_BSY) == SPI_SR_BSY)
 	{
 		return;
 	}
@@ -172,9 +172,11 @@ void MotorMPM::update()
 	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_RESET);
 
-	spi->Instance->CR1 |= SPI_CR1_SPE;
 	spi->Instance->DR = (uint16_t)torque;
+	spi->Instance->CR1 |= SPI_CR1_SPE;
 
 	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_SET);
 
