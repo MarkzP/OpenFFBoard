@@ -30,7 +30,10 @@ const std::vector<class_entry<ButtonSource>> button_sources =
 		add_class<LocalButtons,ButtonSource>(),
 #endif
 #ifdef SPIBUTTONS
-		add_class<SPI_Buttons,ButtonSource>(),
+		add_class<SPI_Buttons_1,ButtonSource>(),
+#endif
+#ifdef SPIBUTTONS2
+		add_class<SPI_Buttons_2,ButtonSource>(),
 #endif
 #ifdef SHIFTERBUTTONS
 		add_class<ShifterAnalog,ButtonSource>(),
@@ -81,7 +84,7 @@ FFBWheel::FFBWheel() :
 	// Setup a timer for updates faster than USB SOF
 	extern TIM_HandleTypeDef htim4;
 	this->timer_update = &htim4; // Timer setup with prescaler of sysclock
-	this->timer_update->Instance->PSC = 95;
+	this->timer_update->Instance->PSC = (SystemCoreClock / 1000000)-1;
 	this->timer_update->Instance->ARR = 500; // 250 = 4khz, 500 = 2khz...
 	this->timer_update->Instance->CR1 = 1;
 	HAL_TIM_Base_Start_IT(this->timer_update);
@@ -152,17 +155,6 @@ void FFBWheel::saveFlash(){
 	Flash_Write(ADR_FFBWHEEL_ENDSTOP,this->fx_ratio_i | (this->endstop_gain_i << 8));
 
 
-	// TODO saving directly in persistenstorage
-	// Call save methods for active button sources
-	for(ButtonSource* btn : this->btns){
-		btn->saveFlash();
-	}
-
-	for(AnalogSource* ain : this->analog_inputs){
-		ain->saveFlash();
-	}
-	drv->saveFlash(); // Motor driver
-	ffb->saveFlash(); // FFB handler
 }
 
 /*
@@ -174,6 +166,11 @@ void FFBWheel::update(){
 		pulseErrLed();
 		return;
 	}
+	if(encResetFlag){
+		encResetFlag = false;
+		this->enc->setPos(0);
+	}
+
 	// If either usb SOF or timer triggered
 	if(usb_update_flag || update_flag){
 		int32_t lastTorque = torque;
@@ -358,7 +355,13 @@ void FFBWheel::setDrvType(uint8_t drvtype){
 			setEncType(drv->getInfo().id); // Auto preset driver as encoder
 		}
 	}
-	drv->start();
+	if(hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED){
+		usb_disabled = false;
+		this->usbSuspend();
+	}else{
+		drv->start();
+	}
+
 }
 
 // Special tmc setup methods
@@ -518,7 +521,14 @@ void FFBWheel::send_report(){
 		*analogAxesReport[count] = 0;
 	}
 
-	USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS, reinterpret_cast<uint8_t*>(&reportHID), sizeof(reportHID_t));
+	/*
+	 * Only send a new report if actually changed since last time or timeout
+	 */
+	if(reportSendCounter++ > 100 || (memcmp(&lastReportHID,&reportHID,sizeof(reportHID_t)) != 0) ){
+		USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS, reinterpret_cast<uint8_t*>(&reportHID), sizeof(reportHID_t));
+		lastReportHID = reportHID;
+		reportSendCounter = 0;
+	}
 
 }
 
@@ -571,7 +581,7 @@ void FFBWheel::exti(uint16_t GPIO_Pin){
 	if(GPIO_Pin == BUTTON_A_Pin){
 		// Button down?
 		if(HAL_GPIO_ReadPin(BUTTON_A_GPIO_Port, BUTTON_A_Pin) && this->enc != nullptr){
-			this->enc->setPos(0);
+			this->encResetFlag = true;
 		}
 	}
 #ifdef E_STOP_Pin
