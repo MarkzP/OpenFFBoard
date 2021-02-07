@@ -14,6 +14,7 @@
 extern TIM_HandleTypeDef htim4;
 
 
+
 ClassIdentifier MotorMPM::info =
 { .name = "MPM", .id = 3, .hidden = false };
 
@@ -40,19 +41,16 @@ MotorMPM::MotorMPM()
 
 	restoreFlash();
 
+	//spi->Init.DataSize = SPI_DATASIZE_16BIT;
+	spi->Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+
+	spi->Instance->CR1 = (spi->Init.Mode | spi->Init.Direction | spi->Init.DataSize |
+			spi->Init.CLKPolarity | spi->Init.CLKPhase | (spi->Init.NSS & SPI_CR1_SSM) |
+			spi->Init.BaudRatePrescaler | spi->Init.FirstBit  | spi->Init.CRCCalculation);
+
 	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_SET);
 
-	HAL_SPI_DeInit(spi);
-
-	spi->Init.DataSize = SPI_DATASIZE_16BIT;
-	spi->Init.CLKPolarity = SPI_POLARITY_LOW;
-	spi->Init.CLKPhase = SPI_PHASE_1EDGE;
-	spi->Init.FirstBit = SPI_FIRSTBIT_LSB;
-	spi->Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
-
-	HAL_SPI_Init(spi);
-
-	initialized = true;
+	state = MPM_MASTER_IDLE;
 }
 
 
@@ -65,6 +63,8 @@ MotorMPM::~MotorMPM()
 void MotorMPM::turn(int16_t power)
 {
 	torque = power;
+
+	update();
 }
 
 
@@ -84,6 +84,8 @@ void MotorMPM::start()
 
 int32_t MotorMPM::getPos()
 {
+	update();
+
 	return position;
 }
 
@@ -108,9 +110,58 @@ uint32_t MotorMPM::getCpr()
 
 void MotorMPM::timerElapsed(TIM_HandleTypeDef* htim)
 {
-	if(htim == this->timer_update)
+//	if(htim == this->timer_update)
+//	{
+//		if (state == MPM_MASTER_IDLE)
+//		{
+//			state = MPM_MASTER_UPDATE;
+//		}
+//	}
+}
+
+
+void MotorMPM::SpiTxRxCplt(SPI_HandleTypeDef *hspi)
+{
+	if (hspi == spi)
 	{
-		update();
+		__disable_irq();
+
+		if (state == MPM_MASTER_RXTX)
+		{
+			encoderAngle = (int16_t)(((uint16_t)spiRx[0] << 8) + (uint16_t)spiRx[1]);
+
+			if (aligned)
+			{
+				int32_t delta =  encoderAngle - lastEncoderAngle;
+
+				if (delta > (CPR / 2))
+				{
+					rotation--;
+				}
+				else if (delta < -(CPR / 2))
+				{
+					rotation++;
+				}
+			}
+			else
+			{
+				aligned = true;
+			}
+
+			lastEncoderAngle = encoderAngle;
+
+			position = (rotation * CPR) + encoderAngle + offset;
+
+			state = MPM_MASTER_IDLE;
+
+			HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_SET);
+		}
+		else
+		{
+			// Error condition
+		}
+
+		__enable_irq();
 	}
 }
 
@@ -156,60 +207,34 @@ void MotorMPM::restoreFlash()
 
 void MotorMPM::update()
 {
-	if (!initialized || (spi->Instance->SR & SPI_SR_BSY) == SPI_SR_BSY)
-	{
-		return;
-	}
-
 	__disable_irq();
 
-	spi->Instance->CR1 &= ~SPI_CR1_SPE;
-	volatile uint32_t tmpdr = spi->Instance->DR;
-	(void)tmpdr;
-
-	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_RESET);
-
-	spi->Instance->DR = (uint16_t)torque;
-	spi->Instance->CR1 |= SPI_CR1_SPE;
-
-	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_SET);
-
-	__enable_irq();
-
-	while ((spi->Instance->SR & SPI_SR_BSY) == SPI_SR_BSY);
-
-	if ((spi->Instance->SR & SPI_SR_RXNE) == SPI_SR_RXNE)
+	if (state == MPM_MASTER_IDLE)
 	{
-		encoderAngle = (int16_t)(spi->Instance->DR);
 
-		if (aligned)
+		state = MPM_MASTER_RXTX;
+		HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_RESET);
+
+		spiTx[0] = (torque >> 8) & 0xff;
+		spiTx[1] = torque & 0xff;
+#if 1
+		if (HAL_SPI_TransmitReceive_DMA(spi, (uint8_t*)&spiTx, (uint8_t*)&spiRx, 2) != HAL_OK)
 		{
-			int32_t delta =  encoderAngle - lastEncoderAngle;
-
-			if (delta > (CPR / 2))
-			{
-				rotation--;
-			}
-			else if (delta < -(CPR / 2))
-			{
-				rotation++;
-			}
+			state = MPM_MASTER_IDLE;
+			HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_SET);
+		}
+#else
+		if (HAL_SPI_TransmitReceive(spi, (uint8_t*)&spiTx, (uint8_t*)&spiRx, 2, 1) != HAL_OK)
+		{
+			state = MPM_MASTER_IDLE;
+			//HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_SET);
 		}
 		else
 		{
-			aligned = true;
+			SpiTxRxCplt(spi);
 		}
-
-		lastEncoderAngle = encoderAngle;
-
-		position = (rotation * CPR) + encoderAngle + offset;
+#endif
 	}
+
+	__enable_irq();
 }
-
-

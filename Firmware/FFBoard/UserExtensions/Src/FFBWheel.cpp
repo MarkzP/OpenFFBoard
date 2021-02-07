@@ -186,7 +186,7 @@ void FFBWheel::update(){
 		}
 		scaledEnc = getEncValue(enc,degreesOfRotation);
 
-		update_flag = false;
+
 
 		if(abs(scaledEnc) > 0xffff){
 			// We are way off. Shut down
@@ -205,8 +205,14 @@ void FFBWheel::update(){
 //			}
 		}
 
-		speed = scaledEnc - lastScaledEnc;
+		if (update_flag)
+		{
+			speed = scaledEnc - lastScaledEnc;
+			update_flag = false;
+		}
+
 		lastScaledEnc = scaledEnc;
+
 
 		// Update USB Effects only on SOF
 		if(usb_update_flag){
@@ -214,12 +220,8 @@ void FFBWheel::update(){
 			usb_update_flag = false;
 			effectTorque = ffb->calculateEffects(scaledEnc,1);
 
-			if(abs(effectTorque) >= 0x7fff){
-				pulseClipLed();
-			}
-			// Scale for power and endstop margin
-			float effect_margin_scaler = ((float)fx_ratio_i/255.0);
-			effectTorque *= ((float)this->power / (float)0x7fff) * effect_margin_scaler;
+			effectTorque *= ((float)this->power / (float)0x7fff);
+
 			//Send usb gamepad report
 			if(++report_rate_cnt >= usb_report_rate){
 				report_rate_cnt = 0;
@@ -230,18 +232,41 @@ void FFBWheel::update(){
 		int32_t endstopTorque = updateEndstop();
 
 		// Calculate total torque
-		torque += effectTorque + endstopTorque;
+		int32_t maxEffectTorque = abs(effectTorque);
+		int32_t maxEndstop = abs(endstopTorque);
+		bool sameDir = (effectTorque > 0 && endstopTorque > 0) || (effectTorque < 0 && endstopTorque < 0);
+
+		if (maxEffectTorque > 0 && maxEndstop > 0)
+		{
+			if (sameDir)
+			{
+				torque = maxEffectTorque > maxEndstop ? effectTorque : endstopTorque;
+			}
+			else
+			{
+				torque = endstopTorque;
+			}
+		}
+		else
+		{
+			torque = effectTorque + endstopTorque;
+		}
+
+
 		if(conf.invertX){ // Invert output torque if axis is flipped
 			torque = -torque;
 		}
 
 		// Torque changed
 		if(torque != lastTorque){
-			// Update torque and clip
-			torque = clip<int32_t,int32_t>(torque, -this->power, this->power);
-			if(abs(torque) == power){
+			// Update torque
+
+			torque = clip<int32_t,int32_t>(torque, -0x7fff, 0x7fff);
+
+			if(abs(torque) >= this->power){
 				pulseClipLed();
 			}
+
 			// Send to motor driver
 			drv->turn(torque);
 		}
@@ -252,19 +277,27 @@ void FFBWheel::update(){
 /*
  * Calculate soft endstop effect
  */
-int16_t FFBWheel::updateEndstop(){
-	int8_t clipdir = cliptest<int32_t,int32_t>(lastScaledEnc, -0x7fff, 0x7fff);
-	if(clipdir == 0){
-		return 0;
+int32_t FFBWheel::updateEndstop(){
+
+	int32_t endstopTorque = 0;
+	int32_t endstopOvershoot = abs(lastScaledEnc) - 0x7fff;
+	if (endstopOvershoot > 0)
+	{
+		endstopTorque += (float)(lastScaledEnc > 0 ? -endstopOvershoot : endstopOvershoot) * (float)endstop_gain_i * 0.3f;;
 	}
-	int32_t addtorque = 0;
 
-	addtorque += clip<int32_t,int32_t>(abs(lastScaledEnc)-0x7fff,-0x7fff,0x7fff);
-	addtorque *= (float)endstop_gain_i * 0.3f; // Apply endstop gain for stiffness
-	addtorque *= -clipdir;
+	int32_t damperZone = 128;
+	int32_t damperOvershoot = abs(lastScaledEnc) - (0x7fff - damperZone);
+	if (damperOvershoot > 0)
+	{
+		float ratio = 10.0f;// * (float)(damperOvershoot > damperZone ? damperZone : damperOvershoot) / (float)damperZone;
+		endstopTorque += speed * speed * (speed > 0 ? -1 : 1) * ratio;
+	}
 
-	return clip<int32_t,int32_t>(addtorque,-0x7fff,0x7fff);
+	return clip<int32_t,int32_t>(endstopTorque,-0x7fff,0x7fff);
 }
+
+
 
 void FFBWheel::setPower(uint16_t power){
 	// Update hardware limits for TMC for safety
