@@ -57,7 +57,6 @@ private:
 	int32_t offset;
 	bool aligned;
 
-	TIM_HandleTypeDef* timer_update;
 	SPI_HandleTypeDef *spi;
 	GPIO_TypeDef *csport;
 	uint16_t cspin;

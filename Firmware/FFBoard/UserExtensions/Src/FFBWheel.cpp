@@ -280,14 +280,14 @@ int32_t FFBWheel::updateEndstop(){
 	int32_t endstopOvershoot = abs(lastScaledEnc) - 0x7fff;
 	if (endstopOvershoot > 0)
 	{
-		endstopTorque += (float)(lastScaledEnc > 0 ? -endstopOvershoot : endstopOvershoot) * (float)endstop_gain_i * 0.3f;;
+		endstopTorque += (float)(lastScaledEnc > 0 ? -endstopOvershoot : endstopOvershoot) * (float)endstop_gain_i * 0.3f;
 	}
 
 	int32_t damperZone = 128;
 	int32_t damperOvershoot = abs(lastScaledEnc) - (0x7fff - damperZone);
 	if (damperOvershoot > 0)
 	{
-		float ratio = 10.0f;// * (float)(damperOvershoot > damperZone ? damperZone : damperOvershoot) / (float)damperZone;
+		float ratio = 15.0f * (float)(damperOvershoot > damperZone ? damperZone : damperOvershoot) / (float)damperZone;
 		endstopTorque += speed * speed * (speed > 0 ? -1 : 1) * ratio;
 	}
 

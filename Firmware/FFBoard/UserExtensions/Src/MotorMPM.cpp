@@ -11,9 +11,6 @@
 #define CPR	(1 << 16)
 #define MPM_OFFSET_ADR	0xfea
 
-extern TIM_HandleTypeDef htim4;
-
-
 
 ClassIdentifier MotorMPM::info =
 { .name = "MPM", .id = 3, .hidden = false };
@@ -27,6 +24,8 @@ const ClassIdentifier MotorMPM::getInfo()
 
 MotorMPM::MotorMPM()
 {
+	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_SET);
+
 	encoderAngle = 0;
 	lastEncoderAngle = 0;
 	position = 0;
@@ -37,18 +36,14 @@ MotorMPM::MotorMPM()
 	spi = &HSPIDRV;
 	csport = SPI1_SS1_GPIO_Port;
 	cspin = SPI1_SS1_Pin;
-	timer_update = &htim4;
 
 	restoreFlash();
 
-	//spi->Init.DataSize = SPI_DATASIZE_16BIT;
 	spi->Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
 
 	spi->Instance->CR1 = (spi->Init.Mode | spi->Init.Direction | spi->Init.DataSize |
 			spi->Init.CLKPolarity | spi->Init.CLKPhase | (spi->Init.NSS & SPI_CR1_SSM) |
 			spi->Init.BaudRatePrescaler | spi->Init.FirstBit  | spi->Init.CRCCalculation);
-
-	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_SET);
 
 	state = MPM_MASTER_IDLE;
 }
@@ -73,16 +68,12 @@ void MotorMPM::stop()
 	HAL_GPIO_WritePin(DRV_ENABLE_GPIO_Port,DRV_ENABLE_Pin,GPIO_PIN_RESET);
 
 	torque = 0;
-
-	update();
 }
 
 
 void MotorMPM::start()
 {
 	torque = 0;
-
-	update();
 
 	HAL_GPIO_WritePin(DRV_ENABLE_GPIO_Port,DRV_ENABLE_Pin,GPIO_PIN_SET);
 }
@@ -99,9 +90,11 @@ int32_t MotorMPM::getPos()
 void MotorMPM::setPos(int32_t pos)
 {
 	__disable_irq();
+
 	aligned = false;
 	rotation = 0;
 	offset = pos - encoderAngle;
+
 	__enable_irq();
 
 	saveFlash();
@@ -205,7 +198,6 @@ void MotorMPM::update()
 
 	if (state == MPM_MASTER_IDLE)
 	{
-
 		state = MPM_MASTER_RXTX;
 		HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_RESET);
 
@@ -214,6 +206,7 @@ void MotorMPM::update()
 
 		if (HAL_SPI_TransmitReceive_DMA(spi, (uint8_t*)&spiTx, (uint8_t*)&spiRx, 2) != HAL_OK)
 		{
+			// Error condition
 			state = MPM_MASTER_IDLE;
 			HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_SET);
 		}
