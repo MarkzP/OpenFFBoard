@@ -20,12 +20,11 @@ typedef enum _MPM_master_state
 {
 	MPM_MASTER_INIT,
 	MPM_MASTER_IDLE,
-	MPM_MASTER_UPDATE,
 	MPM_MASTER_RXTX,
 } MPM_master_state_t;
 
 
-class MotorMPM: public MotorDriver, public Encoder, public TimerHandler, public SpiHandler, public CommandHandler {
+class MotorMPM: public MotorDriver, public Encoder, public SpiHandler, public CommandHandler {
 public:
 	MotorMPM();
 	virtual ~MotorMPM();
@@ -42,7 +41,6 @@ public:
 
 	uint32_t getCpr(); // Encoder counts per rotation
 
-	void timerElapsed(TIM_HandleTypeDef* htim);
 	void SpiTxRxCplt(SPI_HandleTypeDef *hspi);
 
 	ParseStatus command(ParsedCommand* cmd,std::string* reply);

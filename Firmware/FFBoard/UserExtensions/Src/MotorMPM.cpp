@@ -70,14 +70,20 @@ void MotorMPM::turn(int16_t power)
 
 void MotorMPM::stop()
 {
-	torque = 0;
 	HAL_GPIO_WritePin(DRV_ENABLE_GPIO_Port,DRV_ENABLE_Pin,GPIO_PIN_RESET);
+
+	torque = 0;
+
+	update();
 }
 
 
 void MotorMPM::start()
 {
 	torque = 0;
+
+	update();
+
 	HAL_GPIO_WritePin(DRV_ENABLE_GPIO_Port,DRV_ENABLE_Pin,GPIO_PIN_SET);
 }
 
@@ -105,18 +111,6 @@ void MotorMPM::setPos(int32_t pos)
 uint32_t MotorMPM::getCpr()
 {
 	return CPR;
-}
-
-
-void MotorMPM::timerElapsed(TIM_HandleTypeDef* htim)
-{
-//	if(htim == this->timer_update)
-//	{
-//		if (state == MPM_MASTER_IDLE)
-//		{
-//			state = MPM_MASTER_UPDATE;
-//		}
-//	}
 }
 
 
@@ -217,23 +211,12 @@ void MotorMPM::update()
 
 		spiTx[0] = (torque >> 8) & 0xff;
 		spiTx[1] = torque & 0xff;
-#if 1
+
 		if (HAL_SPI_TransmitReceive_DMA(spi, (uint8_t*)&spiTx, (uint8_t*)&spiRx, 2) != HAL_OK)
 		{
 			state = MPM_MASTER_IDLE;
 			HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_SET);
 		}
-#else
-		if (HAL_SPI_TransmitReceive(spi, (uint8_t*)&spiTx, (uint8_t*)&spiRx, 2, 1) != HAL_OK)
-		{
-			state = MPM_MASTER_IDLE;
-			//HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_SET);
-		}
-		else
-		{
-			SpiTxRxCplt(spi);
-		}
-#endif
 	}
 
 	__enable_irq();
