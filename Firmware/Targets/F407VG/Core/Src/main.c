@@ -152,7 +152,7 @@ int main(void)
   MX_SPI3_Init();
   MX_USART1_UART_Init();
   MX_TIM10_Init();
-  MX_IWDG_Init();
+  //MX_IWDG_Init();
 
   /* Initialize interrupts */
   MX_NVIC_Init();

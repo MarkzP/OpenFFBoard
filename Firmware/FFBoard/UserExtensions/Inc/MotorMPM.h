@@ -10,21 +10,12 @@
 
 #include <MotorDriver.h>
 #include <Encoder.h>
-#include <TimerHandler.h>
 #include <ExtiHandler.h>
 #include <SpiHandler.h>
 #include <CommandHandler.h>
 
 
-typedef enum _MPM_master_state
-{
-	MPM_MASTER_INIT,
-	MPM_MASTER_IDLE,
-	MPM_MASTER_RXTX,
-} MPM_master_state_t;
-
-
-class MotorMPM: public MotorDriver, public Encoder, public SpiHandler, public CommandHandler {
+class MotorMPM: public MotorDriver, public Encoder, public ExtiHandler, public SpiHandler, public CommandHandler {
 public:
 	MotorMPM();
 	virtual ~MotorMPM();
@@ -41,6 +32,7 @@ public:
 
 	uint32_t getCpr(); // Encoder counts per rotation
 
+	void exti(uint16_t GPIO_Pin);
 	void SpiTxRxCplt(SPI_HandleTypeDef *hspi);
 
 	ParseStatus command(ParsedCommand* cmd,std::string* reply);
@@ -64,9 +56,8 @@ private:
 	volatile uint8_t spiTx[2];
 	volatile uint8_t spiRx[2];
 
-	volatile MPM_master_state_t state = MPM_MASTER_INIT;
-
-	void update();
+	volatile bool enabled = false;
+	volatile bool initialized = false;
 };
 
 #endif /* MOTORMPM_H_ */

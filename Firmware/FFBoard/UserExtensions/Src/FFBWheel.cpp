@@ -249,6 +249,13 @@ void FFBWheel::update(){
 			torque = effectTorque + endstopTorque;
 		}
 
+		int32_t damperZone = 64;
+		int32_t damperOvershoot = abs(lastScaledEnc) - (0x7fff - damperZone);
+		if (damperOvershoot > 0)
+		{
+			torque += speed * speed * (speed > 0 ? -1 : 1) * 5.0f;
+		}
+
 
 		if(conf.invertX){ // Invert output torque if axis is flipped
 			torque = -torque;
@@ -281,14 +288,6 @@ int32_t FFBWheel::updateEndstop(){
 	if (endstopOvershoot > 0)
 	{
 		endstopTorque += (float)(lastScaledEnc > 0 ? -endstopOvershoot : endstopOvershoot) * (float)endstop_gain_i * 0.3f;
-	}
-
-	int32_t damperZone = 128;
-	int32_t damperOvershoot = abs(lastScaledEnc) - (0x7fff - damperZone);
-	if (damperOvershoot > 0)
-	{
-		float ratio = 15.0f * (float)(damperOvershoot > damperZone ? damperZone : damperOvershoot) / (float)damperZone;
-		endstopTorque += speed * speed * (speed > 0 ? -1 : 1) * ratio;
 	}
 
 	return clip<int32_t,int32_t>(endstopTorque,-0x7fff,0x7fff);

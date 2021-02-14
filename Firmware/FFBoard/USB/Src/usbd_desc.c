@@ -94,7 +94,7 @@
 #define USBD_VID     0x1209 // STM 1155
 #define USBD_LANGID_STRING     1033
 #define USBD_MANUFACTURER_STRING     "Open FFBoard"
-#define USBD_PID_FS     0xFFB0 // STM 0x502C
+#define USBD_PID_FS     0xFFB1 // STM 0x502C
 #define USBD_PRODUCT_STRING_FS     "OpenFFBoard"
 //#define USBD_SERIALNUMBER_STRING_FS     "00000000001A"
 #define USBD_CONFIGURATION_STRING_FS     "FFBoard Config"
