@@ -132,6 +132,7 @@ private:
 
 	int32_t lastScaledEnc = 0;
 	int32_t scaledEnc = 0;
+	int32_t lastSpeedEnc = 0;
 	int32_t speed = 0;
 	bool tmcFeedForward = false; // Experimental
 	uint16_t btnsources = 1; // Default ID0 = local buttons

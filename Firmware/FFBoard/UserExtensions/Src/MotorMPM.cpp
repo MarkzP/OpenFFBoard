@@ -114,6 +114,11 @@ void MotorMPM::exti(uint16_t GPIO_Pin)
 	{
 		if (enabled && initialized)
 		{
+			if (HAL_SPI_GetState(spi) == HAL_SPI_STATE_BUSY_TX_RX)
+			{
+				HAL_SPI_Abort(spi);
+			}
+
 			HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_RESET);
 
 			uint16_t tmpTorque = (uint16_t)torque;
@@ -173,11 +178,14 @@ ParseStatus MotorMPM::command(ParsedCommand *cmd, std::string *reply)
 	{
 		if (cmd->type == CMDtype::get)
 		{
+			*reply += initialized ? "I" : "*";
+			*reply += enabled ? "E" : "*";
 			*reply +=
-					"(" + std::to_string(rotation) + " * " + std::to_string(CPR)
+					" (" + std::to_string(rotation) + " * " + std::to_string(CPR)
 					+ ") + " + std::to_string(encoderAngle)
 					+ " + " + std::to_string(offset)
-					+ " = " + std::to_string(position);
+					+ " = " + std::to_string(position)
+					+ "; Torque = " + std::to_string(torque);
 		}
 	}
 	else

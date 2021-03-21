@@ -204,7 +204,8 @@ void FFBWheel::update(){
 
 		if (update_flag)
 		{
-			speed = scaledEnc - lastScaledEnc;
+			speed = scaledEnc - lastSpeedEnc;
+			lastSpeedEnc = scaledEnc;
 			update_flag = false;
 		}
 
@@ -253,7 +254,7 @@ void FFBWheel::update(){
 		int32_t damperOvershoot = abs(lastScaledEnc) - (0x7fff - damperZone);
 		if (damperOvershoot > 0)
 		{
-			torque += speed * speed * (speed > 0 ? -1 : 1) * 5.0f;
+			torque += speed * speed * (speed > 0 ? -1 : 1) * 3.0f;
 		}
 
 
