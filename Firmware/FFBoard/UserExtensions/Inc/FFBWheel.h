@@ -29,6 +29,7 @@
 #include "ExtiHandler.h"
 #include "UsbHidHandler.h"
 #include "hid_cmd_defs.h"
+#include "ErrorHandler.h"
 
 
 struct FFBWheelConfig{
@@ -40,7 +41,7 @@ struct FFBWheelConfig{
 
 
 
-class FFBWheel: public FFBoardMain, TimerHandler, PersistentStorage,ExtiHandler,UsbHidHandler{
+class FFBWheel: public FFBoardMain, TimerHandler, PersistentStorage,ExtiHandler,UsbHidHandler, ErrorHandler{
 public:
 	FFBWheel();
 	virtual ~FFBWheel();
@@ -85,6 +86,8 @@ public:
 
 	void timerElapsed(TIM_HandleTypeDef* htim);
 	void exti(uint16_t GPIO_Pin);
+
+	void errorCallback(Error_t &error, bool cleared);
 
 	volatile bool usb_update_flag = false;
 	volatile bool update_flag = false;
@@ -200,6 +203,8 @@ private:
 	ClassChooser<MotorDriver> drv_chooser;
 	ClassChooser<Encoder> enc_chooser;
 	ClassChooser<AnalogSource> analog_chooser;
+
+	ErrorPrinter errorPrinter; // Prints errors to serial
 };
 
 #endif /* SRC_FFBWHEEL_H_ */

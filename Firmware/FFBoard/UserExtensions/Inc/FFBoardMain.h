@@ -16,6 +16,9 @@
 #include "ChoosableClass.h"
 #include "CommandHandler.h"
 #include <vector>
+#include "ErrorHandler.h"
+
+
 
 class FFBoardMain : virtual ChoosableClass, public CommandHandler {
 public:
@@ -35,14 +38,30 @@ public:
 	virtual void usbSuspend(); // Called on usb disconnect and suspend
 	virtual void usbResume(); // Called on usb resume
 	virtual void updateSys();
-	virtual void printFlashDump(std::string *reply);
 
+	static void sendSerial(std::string cmd,std::string string);
+	static void logSerial(std::string* string);
+
+	static void printFlashDump(std::string *reply);
+	static void printErrors(std::string *reply);
+
+	Error_t cmdNotFoundError = {
+		code : ErrorCode::cmdNotFound,
+		type : ErrorType::temporary,
+		info : "Invalid command"
+	};
+
+	Error_t cmdExecError = {
+		code : ErrorCode::cmdExecutionError,
+		type : ErrorType::temporary,
+		info : "Error while executing command"
+	};
 private:
 	bool usb_busy_retry = false;
 	std::string cmd_reply;
 
 protected:
-	virtual std::string getHelpstring(){return "\nSystem Commands: reboot,help,dfu,swver (Version),hwtype,lsmain (List configs),id,main (Set main config),lsactive (print command handlers),vint,vext,format (Erase flash),mallinfo (Mem usage),flashdump,flashraw\n";}
+	virtual std::string getHelpstring(){return "\nSystem Commands: errors,reboot,help,dfu,swver (Version),hwtype,lsmain (List configs),id,main (Set main config),lsactive (print command handlers),vint,vext,format (Erase flash),mallinfo (Mem usage),flashdump,flashraw\n";}
 
 	virtual void executeCommands(std::vector<ParsedCommand> commands);
 	virtual ParseStatus command(ParsedCommand* cmd,std::string* reply); // Append reply strings to reply buffer

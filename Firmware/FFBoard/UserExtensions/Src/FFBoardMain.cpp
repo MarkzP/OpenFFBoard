@@ -23,6 +23,7 @@
 #include "voltagesense.h"
 #include "global_callbacks.h"
 #include "PersistentStorage.h"
+#include "ErrorHandler.h"
 
 #include "ClassChooser.h"
 extern ClassChooser<FFBoardMain> mainchooser;
@@ -57,6 +58,23 @@ void FFBoardMain::updateSys(){
 }
 
 /*
+ * Formats a serial reply in command form
+ */
+void FFBoardMain::sendSerial(std::string cmd,std::string string){
+	std::string reply = ">" + cmd + ":" + string + "\n";
+	CDC_Transmit_FS(reply.c_str(), reply.length());
+}
+
+/*
+ * Sends log info
+ */
+void FFBoardMain::logSerial(std::string* string){
+	std::string reply = "!" + *string + "\n";
+	CDC_Transmit_FS(reply.c_str(), reply.length());
+}
+
+
+/*
  * Prints a formatted flash dump to the reply string
  */
 void FFBoardMain::printFlashDump(std::string *reply){
@@ -73,20 +91,34 @@ void FFBoardMain::printFlashDump(std::string *reply){
 
 }
 
+/*
+ * Prints a formatted list of error conditions
+ */
+void FFBoardMain::printErrors(std::string *reply){
+	std::vector<Error_t>* errors = ErrorHandler::getErrors();
+	if(errors->size() == 0){
+		*reply += "None";
+		return;
+	}
+
+	for(Error_t error : *errors){
+		*reply += error.toString() + "\n";
+	}
+
+	ErrorHandler::clearTemp();
+}
 
 ParseStatus FFBoardMain::executeSysCommand(ParsedCommand* cmd,std::string* reply){
 	ParseStatus flag = ParseStatus::OK;
 
 	if(cmd->cmd == "help"){
 		*reply += parser.helpstring;
-		extern std::vector<CommandHandler*> cmdHandlers;
-		for(CommandHandler* handler : cmdHandlers){
+		for(CommandHandler* handler : CommandHandler::cmdHandlers){
 			*reply += handler->getHelpstring();
 		}
 
 	}else if(cmd->cmd == "save"){
-		extern std::vector<PersistentStorage*> flashHandlers;
-		for(PersistentStorage* handler : flashHandlers){
+		for(PersistentStorage* handler : PersistentStorage::flashHandlers){
 			handler->saveFlash();
 		}
 
@@ -112,6 +144,9 @@ ParseStatus FFBoardMain::executeSysCommand(ParsedCommand* cmd,std::string* reply
 
 	}else if(cmd->cmd == "flashdump"){
 		printFlashDump(reply);
+
+	}else if(cmd->cmd == "errors"){
+		printErrors(reply);
 
 	}else if(cmd->cmd == "flashraw"){ // Set and get flash eeprom emulation values
 		if(cmd->type == CMDtype::setat){
@@ -141,8 +176,7 @@ ParseStatus FFBoardMain::executeSysCommand(ParsedCommand* cmd,std::string* reply
 		*reply+=std::to_string(info.arena);
 
 	}else if(cmd->cmd == "lsactive"){ // Prints all active command handlers that have a name
-		extern std::vector<CommandHandler*> cmdHandlers;
-		for(CommandHandler* handler : cmdHandlers){
+		for(CommandHandler* handler : CommandHandler::cmdHandlers){
 			if(handler->hasCommands()){
 				ClassIdentifier i = handler->getInfo();
 				if(!i.hidden)
@@ -190,8 +224,6 @@ void FFBoardMain::executeCommands(std::vector<ParsedCommand> commands){
 	if(!usb_busy_retry){
 		this->cmd_reply.clear();
 	}
-	extern std::vector<CommandHandler*> cmdHandlers;
-
 	for(ParsedCommand cmd : commands){
 		ParseStatus status = ParseStatus::NOT_FOUND;
 		if(cmd.cmd.empty())
@@ -204,7 +236,7 @@ void FFBoardMain::executeCommands(std::vector<ParsedCommand> commands){
 		status = executeSysCommand(&cmd,&reply);
 		if(status == ParseStatus::NOT_FOUND || status == ParseStatus::OK_CONTINUE){ // Not a system command
 			// Call all command handlers
-			for(CommandHandler* handler : cmdHandlers){
+			for(CommandHandler* handler : CommandHandler::cmdHandlers){
 				if(handler->hasCommands()){
 					ParseStatus newstatus = handler->command(&cmd,&reply);
 					// If last class did not have commands but a previous one asked to continue keep continue status
@@ -223,10 +255,18 @@ void FFBoardMain::executeCommands(std::vector<ParsedCommand> commands){
 		if(!reply.empty() && reply.back()!='\n'){
 			reply+='\n';
 		}
+		// Errors
 		if(status == ParseStatus::NOT_FOUND){ //No class reported success. Show error
-			reply = "Err(0). Unknown command\n";
+			Error_t err = cmdNotFoundError;
+			reply = "Err. invalid";
+			err.info = cmd.rawcmd + " not found";
+			ErrorHandler::addError(err);
+
 		}else if(status == ParseStatus::ERR){ //Error reported in command
-			reply += "Err(1). Execution error\n";
+			reply = "Err. exec error";
+			Error_t err = cmdExecError;
+			err.info = "Error executing" + cmd.rawcmd;
+			ErrorHandler::addError(err);
 		}
 		this->cmd_reply+=reply;
 	}
