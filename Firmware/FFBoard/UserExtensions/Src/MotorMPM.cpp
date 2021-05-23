@@ -24,8 +24,6 @@ const ClassIdentifier MotorMPM::getInfo()
 
 MotorMPM::MotorMPM()
 {
-	HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_SET);
-
 	encoderAngle = 0;
 	lastEncoderAngle = 0;
 	position = 0;
@@ -71,7 +69,7 @@ void MotorMPM::start()
 {
 	if (!initialized)
 	{
-		//restoreFlash();
+		restoreFlash();
 		initialized = true;
 	}
 
@@ -97,7 +95,7 @@ void MotorMPM::setPos(int32_t pos)
 		rotation = 0;
 		offset = pos - encoderAngle;
 
-		//saveFlash();
+		saveFlash();
 	}
 }
 
@@ -119,8 +117,6 @@ void MotorMPM::exti(uint16_t GPIO_Pin)
 				HAL_SPI_Abort(spi);
 			}
 
-			HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_RESET);
-
 			uint16_t tmpTorque = (uint16_t)torque;
 
 			spiTx[0] = (tmpTorque >> 8) & 0xff;
@@ -129,7 +125,6 @@ void MotorMPM::exti(uint16_t GPIO_Pin)
 			if (HAL_SPI_TransmitReceive_DMA(spi, (uint8_t*)&spiTx, (uint8_t*)&spiRx, 2) != HAL_OK)
 			{
 				// Error condition
-				HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_SET);
 			}
 		}
 	}
@@ -140,8 +135,6 @@ void MotorMPM::SpiTxRxCplt(SPI_HandleTypeDef *hspi)
 {
 	if (hspi == spi)
 	{
-		HAL_GPIO_WritePin(csport, cspin, GPIO_PIN_SET);
-
 		int16_t tmpAngle = (int16_t)(((uint16_t)spiRx[0] << 8) + (uint16_t)spiRx[1]);
 		encoderAngle = tmpAngle;
 
