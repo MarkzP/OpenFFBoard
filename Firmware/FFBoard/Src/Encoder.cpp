@@ -6,8 +6,20 @@
  */
 
 #include "Encoder.h"
+#include "ClassChooser.h"
+#include "EncoderLocal.h"
 
-ClassIdentifier Encoder::info ={.name = "None" , .id=0, .hidden = false};
+// 0-63 valid ids
+std::vector<class_entry<Encoder>> const Encoder::all_encoders =
+	{
+		add_class<Encoder, Encoder>(),
+#ifdef LOCALENCODER
+
+		add_class<EncoderLocal, Encoder>(),
+#endif
+};
+
+ClassIdentifier Encoder::info ={.name = "None" , .id=0, .unique = '0', .hidden = false};
 
 
 const ClassIdentifier Encoder::getInfo(){
@@ -26,17 +38,39 @@ EncoderType Encoder::getType(){
 	return EncoderType::NONE;
 }
 
+/*
+ * Gets the amount of counts per full rotation of the encoder
+ */
 uint32_t Encoder::getCpr(){
 	return this->cpr;
 }
 
 
-void Encoder::setCpr(uint32_t cpr){
-	this->cpr = cpr;
-}
+/*
+ * Returns the encoder position as raw counts
+ */
 int32_t Encoder::getPos(){
 	return 0;
 }
+
+/*
+ * Returns a float position in rotations
+ */
+float Encoder::getPos_f(){
+	if(getCpr() == 0){
+		return 0.0; // cpr not set.
+	}
+	return (float)this->getPos() / (float)this->getCpr();
+}
+
+/*
+ * Change the position of the encoder
+ * Can be used to reset the center
+ */
 void Encoder::setPos(int32_t pos){
 
 }
+
+
+
+

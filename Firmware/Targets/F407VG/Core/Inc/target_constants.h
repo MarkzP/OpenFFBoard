@@ -34,6 +34,7 @@
 #define PWMDRIVER
 #define LOCALENCODER
 #define CANBUS
+#define ODRIVE
 
 #define TMCTEMP // Enable tmc temperature shutdown
 //----------------------
@@ -45,8 +46,14 @@
 #define TIM_PWM_FREQ 168000000
 
 #define TIM_MICROS htim10
+#define TIM_USER htim9 // Timer with full core clock speed available for the mainclass
+
 extern UART_HandleTypeDef huart1;
-#define UART_PORT huart1 // main uart port
+#define UART_PORT_EXT huart1 // main uart port
+
+extern UART_HandleTypeDef huart3;
+#define UART_PORT_MOTOR huart3 // motor uart port
+
 #define UART_BUF_SIZE 1 // How many bytes to expect via DMA
 
 
@@ -89,9 +96,19 @@ extern CAN_HandleTypeDef hcan1;
 extern const uint32_t canSpeedBTR_preset[];
 #endif
 
+/*
+ * Scaler to convert from ADC counts to amps
+ * Depends on shunt and amplifier values
+ */
+#define TMC_CURRENTSCALER 2.5 / (0x7fff * 60.0 * 0.0015)
+
 
 //Flash. 2 pages used
-/* EEPROM start address in Flash*/
+/* EEPROM start address in Flash
+ * PAGE_ID sectors 1 and 2!
+ * */
+#define PAGE0_ID               FLASH_SECTOR_1
+#define PAGE1_ID               FLASH_SECTOR_2
 #define EEPROM_START_ADDRESS  ((uint32_t)0x08004000) /* EEPROM emulation start address: from sector1*/
 #define PAGE_SIZE             (uint32_t)0x4000  /* Page size = 16KByte */
 

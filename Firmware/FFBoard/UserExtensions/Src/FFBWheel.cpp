@@ -2,17 +2,20 @@
  * FFBWheel.cpp
  *
  *  Created on: 31.01.2020
- *      Author: Yannick
+ *      Author: Yannick / Lidders
  */
 
 #include "FFBWheel.h"
-#include "FFBWheel_usb_init.h"
 #include "voltagesense.h"
+#include "hid_device.h"
+#include "tusb.h"
+#include "usb_hid_ffb_desc.h"
 
 // Unique identifier for listing
 ClassIdentifier FFBWheel::info = {
-		 .name = "FFB Wheel" ,
-		 .id=1
+		 .name = "FFB Wheel" , // Leave as wheel for now
+		 .id=1,
+		 .unique = '0'
  };
 
 const ClassIdentifier FFBWheel::getInfo(){
@@ -48,70 +51,29 @@ const std::vector<class_entry<AnalogSource>> analog_sources =
 #endif
 };
 
-
-// 0-63 valid ids
-const std::vector<class_entry<MotorDriver>> motor_sources =
-{
-
-		add_class<MotorDriver,MotorDriver>(),
-#ifdef TMC4671DRIVER
-		add_class<TMC4671,MotorDriver>(),
-#endif
-#ifdef PWMDRIVER
-		add_class<MotorPWM,MotorDriver>(),
-#endif
-		add_class<MotorMPM,MotorDriver>(),
-};
-// 0-63 valid ids
-std::vector<class_entry<Encoder>> encoder_sources =
-{
-		add_class<Encoder,Encoder>(),
-#ifdef LOCALENCODER
-		add_class<EncoderLocal,Encoder>(),
-#endif
-};
-
-// TODO class type for parser? (Simhub for example)
-//////////////////////////////////////////////
-
 FFBWheel::FFBWheel() :
-		btn_chooser(button_sources),drv_chooser(motor_sources),enc_chooser(encoder_sources),analog_chooser(analog_sources)
+		btn_chooser(button_sources),analog_chooser(analog_sources) // axes(1),
 {
-
-	// Create HID FFB handler. Will receive all usb messages directly
-	this->ffb = new HidFFB();
-
-	// Setup a timer for updates faster than USB SOF
-	extern TIM_HandleTypeDef htim4;
-	this->timer_update = &htim4; // Timer setup with prescaler of sysclock
-	this->timer_update->Instance->PSC = (SystemCoreClock / 1000000)-1;
-	this->timer_update->Instance->ARR = 500; // 250 = 4khz, 500 = 2khz...
-	this->timer_update->Instance->CR1 = 1;
-	HAL_TIM_Base_Start_IT(this->timer_update);
-
+	// Creates the required no of axis (Default 1)
+	effects_calc = std::make_unique<EffectsCalculator>();
+	axes_manager = std::make_unique<AxesManager>(&control);
+	axes_manager->setEffectsCalculator(effects_calc.get());
+// Create the USB effects handler & pass in the effects calculator
+	this->ffb = std::make_unique<HidFFB>();
+	this->ffb->setEffectsCalculator(effects_calc.get());
 	restoreFlash(); // Load parameters
 }
 
+
+
 FFBWheel::~FFBWheel() {
 	clearBtnTypes();
-	delete drv;
-	delete enc;
 }
 
-/*
+/**
  * Read parameters from flash and restore settings
  */
 void FFBWheel::restoreFlash(){
-	// read all constants
-	uint16_t confint;
-	if(Flash_Read(ADR_FFBWHEEL_CONFIG, &confint)){
-		this->conf = FFBWheel::decodeConfFromInt(confint);
-	}else{
-		pulseErrLed();
-	}
-
-	setDrvType(this->conf.drvtype);
-	setEncType(this->conf.enctype);
 
 	Flash_Read(ADR_FFBWHEEL_BUTTONCONF, &this->btnsources);
 	setBtnTypes(this->btnsources);
@@ -119,302 +81,70 @@ void FFBWheel::restoreFlash(){
 	Flash_Read(ADR_FFBWHEEL_ANALOGCONF, &this->ainsources);
 	setAinTypes(this->ainsources);
 
-
-	uint16_t cpr = 0;
-	if(Flash_Read(ADR_TMC1_CPR, &cpr)){
-		this->enc->setCpr(cpr);
-	}else{
-		pulseErrLed();
-	}
-
-	Flash_Read(ADR_FFBWHEEL_POWER, &this->power);
-	Flash_Read(ADR_FFBWHEEL_DEGREES, &this->degreesOfRotation);
-	nextDegreesOfRotation = degreesOfRotation;
-
-	uint16_t esval;
-	if(Flash_Read(ADR_FFBWHEEL_ENDSTOP,&esval)){
-		this->fx_ratio_i = esval & 0xff;
-		this->endstop_gain_i = (esval >> 8) & 0xff;
-	}
 }
 // Saves parameters to flash
 void FFBWheel::saveFlash(){
 
-	Flash_Write(ADR_FFBWHEEL_CONFIG,FFBWheel::encodeConfToInt(this->conf));
-	Flash_Write(ADR_TMC1_CPR, enc->getCpr());
-	Flash_Write(ADR_FFBWHEEL_POWER, this->power);
-	Flash_Write(ADR_FFBWHEEL_DEGREES, this->degreesOfRotation);
 	Flash_Write(ADR_FFBWHEEL_BUTTONCONF,this->btnsources);
 	Flash_Write(ADR_FFBWHEEL_ANALOGCONF,this->ainsources);
-	Flash_Write(ADR_FFBWHEEL_ENDSTOP,this->fx_ratio_i | (this->endstop_gain_i << 8));
-
-
 }
 
-/*
+
+/**
  * Periodical update method. Called from main loop
  */
+
 void FFBWheel::update(){
+	if(control.request_update_disabled) {
+		//logSerial("request update disabled");
+		control.update_disabled = true;
+		control.request_update_disabled = false;
 
-	if(drv == nullptr || enc == nullptr || emergency){
+	}
+	if(control.update_disabled){
+		//logSerial("Update disabled");
+		return;
+	}
+	if(control.emergency){
 		pulseErrLed();
 		return;
 	}
-	if(encResetFlag){
-		encResetFlag = false;
-		this->enc->setPos(0);
+	if(control.resetEncoder){
+		control.resetEncoder = false;
+		axes_manager->resetPosZero();
 	}
 
-	// If either usb SOF or timer triggered
-	if(usb_update_flag || update_flag){
-		int32_t lastTorque = torque;
-		torque = 0;
-
-		// Scale encoder value to set rotation range
-		// Update a change of range only when new range is within valid range
-		if(nextDegreesOfRotation != degreesOfRotation && abs(getEncValue(enc,nextDegreesOfRotation)) < 0x7fff){
-			degreesOfRotation = nextDegreesOfRotation;
-		}
-		scaledEnc = getEncValue(enc,degreesOfRotation);
 
 
+	// TODO Emulate a SOF timer...
+	if(HAL_GetTick() - lastUsbReportTick > 0 && !control.usb_disabled){
+		lastUsbReportTick = HAL_GetTick();
+		control.usb_update_flag  = true;
+	}
 
-		if(abs(scaledEnc) > 0xffff){
-			// We are way off. Shut down
-			drv->stop();
-			pulseErrLed();
-		}
-
-		if(this->conf.drvtype == TMC4671::info.id){
-			TMC4671* drv = static_cast<TMC4671*>(this->drv);
-			drv->update();
-			if(drv->estopTriggered){
-				emergencyStop();
-			}
-//			if(!drv->initialized){
-//				return;
-//			}
-		}
-
-		if (update_flag)
-		{
-			speed = scaledEnc - lastSpeedEnc;
-			lastSpeedEnc = scaledEnc;
-			update_flag = false;
-		}
-
-		lastScaledEnc = scaledEnc;
-
-
-		// Update USB Effects only on SOF
-		if(usb_update_flag){
-
-			usb_update_flag = false;
-			effectTorque = ffb->calculateEffects(scaledEnc,1);
-
-			effectTorque *= ((float)this->power / (float)0x7fff);
-
-			//Send usb gamepad report
+	// If either usb or timer triggered
+	if(control.usb_update_flag || control.update_flag){
+//		logSerial("Updating");
+		axes_manager->update();
+		control.update_flag = false;
+		if(control.usb_update_flag){
+			control.usb_update_flag = false;
 			if(++report_rate_cnt >= usb_report_rate){
-				report_rate_cnt = 0;
-				this->send_report();
+					report_rate_cnt = 0;
+					this->send_report();
 			}
 		}
-		// Always check if endstop reached
-		int32_t endstopTorque = updateEndstop();
-
-		// Calculate total torque
-		int32_t maxEffectTorque = abs(effectTorque);
-		int32_t maxEndstop = abs(endstopTorque);
-		bool sameDir = (effectTorque > 0 && endstopTorque > 0) || (effectTorque < 0 && endstopTorque < 0);
-
-		if (maxEffectTorque > 0 && maxEndstop > 0)
-		{
-			if (sameDir)
-			{
-				torque = maxEffectTorque > maxEndstop ? effectTorque : endstopTorque;
-			}
-			else
-			{
-				torque = endstopTorque;
-			}
-		}
-		else
-		{
-			torque = effectTorque + endstopTorque;
-		}
-
-		int32_t damperZone = 64;
-		int32_t damperOvershoot = abs(lastScaledEnc) - (0x7fff - damperZone);
-		if (damperOvershoot > 0)
-		{
-			if (damperOvershoot > damperZone) damperOvershoot = damperZone;
-			torque += speed * speed * (speed > 0 ? -1 : 1) * damperOvershoot / damperZone;
-		}
-
-
-		if(conf.invertX){ // Invert output torque if axis is flipped
-			torque = -torque;
-		}
-
-		// Torque changed
-		if(torque != lastTorque){
-			// Update torque
-
-			torque = clip<int32_t,int32_t>(torque, -0x7fff, 0x7fff);
-
-			if(abs(torque) >= this->power){
-				pulseClipLed();
-			}
-
-			// Send to motor driver
-			drv->turn(torque);
-		}
-	}
-
-}
-
-/*
- * Calculate soft endstop effect
- */
-int32_t FFBWheel::updateEndstop(){
-
-	int32_t endstopTorque = 0;
-	int32_t endstopOvershoot = abs(lastScaledEnc) - 0x7fff;
-	if (endstopOvershoot > 0)
-	{
-		endstopTorque += (float)(lastScaledEnc > 0 ? -endstopOvershoot : endstopOvershoot) * (float)endstop_gain_i * 0.3f;
-	}
-
-	return clip<int32_t,int32_t>(endstopTorque,-0x7fff,0x7fff);
-}
-
-/*
- * Error handling
- */
-void FFBWheel::errorCallback(Error_t &error, bool cleared){
-	if(error.type == ErrorType::critical){
-		if(!cleared){
-			this->emergencyStop();
-		}
-	}
-	if(!cleared){
-		pulseErrLed();
+		axes_manager->updateTorque();
 	}
 }
 
-
-void FFBWheel::setPower(uint16_t power){
-	// Update hardware limits for TMC for safety
-	if(this->conf.drvtype == TMC4671::info.id){
-		TMC4671* drv = static_cast<TMC4671*>(this->drv);
-		//tmclimits.pid_uq_ud = power;
-		tmclimits.pid_torque_flux = power;
-		drv->setLimits(tmclimits);
-	}
-
-	this->power = power;
-}
-uint16_t FFBWheel::getPower(){
-	return this->power;
-}
-
-// create and setup a motor driver
-void FFBWheel::setDrvType(uint8_t drvtype){
-
-	if(!drv_chooser.isValidClassId(drvtype)){
-		return;
-	}
-
-	Encoder* drvenc = dynamic_cast<Encoder*>(drv); // Cast old driver to encoder
-	if(drv != nullptr){
-		if(enc != nullptr && drvenc!=nullptr){
-			for (auto it = encoder_sources.begin(); it != encoder_sources.end(); it++) {
-				// Delete drv from encoder sources if present
-				if(drvenc->getInfo().id == it->info.id){
-					encoder_sources.erase(it);
-					setEncType(0); // reset encoder
-					break;
-				}
-			}
-		}
-		delete drv;
-		drv = nullptr;
-	}
-
-	this->drv = drv_chooser.Create((uint16_t)drvtype);
-	if(this->drv == nullptr){
-		return;
-	}
-	this->conf.drvtype = drvtype;
-	drvenc = dynamic_cast<Encoder*>(drv); // Cast new driver to encoder
-	// Special handling for tmc4671.
-	if(this->conf.drvtype == TMC4671::info.id){
-		setupTMC4671();
-	}
-
-	// Add driver to encoder sources if also implements encoder
-
-	if(drvenc != nullptr){
-		if(!enc_chooser.isValidClassId(drv->getInfo().id)){
-			//TMC4671* drv = static_cast<TMC4671*>(this->drv);
-			//encoder_sources.push_back(add_class_ref<TMC4671,Encoder>(static_cast<Encoder*>(drv)));
-			encoder_sources.push_back(make_class_entry<Encoder>(drv->getInfo(),drvenc));
-			setEncType(drv->getInfo().id); // Auto preset driver as encoder
-		}
-	}
-	if(hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED){
-		usb_disabled = false;
-		this->usbSuspend();
-	}else{
-		drv->start();
-	}
-
-}
-
-// Special tmc setup methods
-void FFBWheel::setupTMC4671(){
-
-	TMC4671* drv = static_cast<TMC4671*>(this->drv);
-	drv->setAddress(1);
-	drv->initialize();
-	drv->setPids(tmcpids);
-	drv->setLimits(tmclimits);
-	//drv->setBiquadFlux(fluxbq);
-
-	if(tmcFeedForward){
-		drv->setupFeedForwardTorque(torqueFFgain, torqueFFconst);
-		drv->setupFeedForwardVelocity(velocityFFgain, velocityFFconst);
-		drv->setFFMode(FFMode::torque);
-	}
-	// Enable driver
-
-	drv->setMotionMode(MotionMode::torque);
-}
-
-void FFBWheel::setEncType(uint8_t enctype){
-
-
-	if(enc_chooser.isValidClassId(enctype)){
-		if(enc != nullptr && enc->getInfo().id != enctype && enctype != drv->getInfo().id && enc->getInfo().id != drv->getInfo().id){
-			delete enc;
-		}
-		this->conf.enctype = (enctype);
-		this->enc = enc_chooser.Create(enctype);
-	}
-	uint16_t cpr=0;
-	if(Flash_Read(ADR_TMC1_CPR, &cpr)){
-		this->enc->setCpr(cpr);
-	}
-	//this->enc->setPos(0); //Zero encoder
-}
 
 // Buttons
 void FFBWheel::clearBtnTypes(){
 	// Destruct all button sources
-	for(ButtonSource* btn : this->btns){
-		delete btn;
-	}
+//	for(ButtonSource* btn : this->btns){
+//		delete btn;
+//	}
 	this->btns.clear();
 }
 
@@ -426,28 +156,28 @@ void FFBWheel::setBtnTypes(uint16_t btntypes){
 			// Matching flag
 			ButtonSource* btn = btn_chooser.Create(id);
 			if(btn!=nullptr)
-				this->btns.push_back(btn);
+				this->btns.push_back(std::unique_ptr<ButtonSource>(btn));
 		}
 	}
 }
 
 void FFBWheel::addBtnType(uint16_t id){
-	for(ButtonSource* btn : this->btns){
+	for(auto &btn : this->btns){
 		if(btn->getInfo().id == id){
 			return;
 		}
 	}
 	ButtonSource* btn = btn_chooser.Create(id);
 	if(btn!=nullptr)
-		this->btns.push_back(btn);
+		this->btns.push_back(std::unique_ptr<ButtonSource>(btn));
 }
 
 // Analog
 void FFBWheel::clearAinTypes(){
 	// Destruct all button sources
-	for(AnalogSource* ain : this->analog_inputs){
-		delete ain;
-	}
+//	for(auto &ain : this->analog_inputs){
+//		delete ain;
+//	}
 	this->analog_inputs.clear();
 }
 
@@ -459,80 +189,74 @@ void FFBWheel::setAinTypes(uint16_t aintypes){
 			// Matching flag
 			AnalogSource* ain = analog_chooser.Create(id);
 			if(ain!=nullptr)
-				this->analog_inputs.push_back(ain);
+				this->analog_inputs.push_back(std::unique_ptr<AnalogSource>(ain));
 		}
 	}
 }
 void FFBWheel::addAinType(uint16_t id){
-	for(AnalogSource* ain : this->analog_inputs){
+	for(auto &ain : this->analog_inputs){
 		if(ain->getInfo().id == id){
 			return;
 		}
 	}
 	AnalogSource* ain = analog_chooser.Create(id);
 	if(ain!=nullptr)
-		this->analog_inputs.push_back(ain);
+		this->analog_inputs.push_back(std::unique_ptr<AnalogSource>(ain));
 }
 
-
-/*
- * Returns a scaled encoder value between -0x7fff and 0x7fff with a range of degrees
- */
-int32_t FFBWheel::getEncValue(Encoder* enc,uint16_t degrees){
-	if(enc == nullptr || degrees == 0){
-		return 0x7fff; // Return center if no encoder present
-	}
-	float angle = 360.0*((float)enc->getPos()/(float)enc->getCpr());
-	int32_t val = (0xffff / (float)degrees) * angle;
-
-	// Flip encoder value (Also has to flip torque)
-	if(conf.invertX){
-		val = -val;
-	}
-	return val;
+uint32_t FFBWheel::getRate() {
+	return this->ffb->getRate();
 }
 
-/*
+bool FFBWheel::getFfbActive(){
+	return this->ffb->getFfbActive();
+}
+
+/**
  * Sends periodic gamepad reports of buttons and analog axes
  */
 void FFBWheel::send_report(){
-	extern USBD_HandleTypeDef hUsbDeviceFS;
 
 	// Read buttons
 	reportHID.buttons = 0; // Reset buttons
 	uint8_t shift = 0;
 	if(btns.size() != 0){
-		for(ButtonSource* btn : btns){
-			uint32_t buf = 0;
-			btn->readButtons(&buf);
+		for(auto &btn : btns){
+			uint64_t buf = 0;
+			uint8_t amount = btn->readButtons(&buf);
 			reportHID.buttons |= buf << shift;
-			shift += btn->getBtnNum();
+			shift += amount;
 		}
 	}
 
-	uint8_t count = 0;
+
 	// Encoder
-	if(this->enc != nullptr){
-		*(analogAxesReport[count++]) = clip(lastScaledEnc,-0x7fff,0x7fff);
+	//axes_manager->addAxesToReport(analogAxesReport, &count);
+
+	std::vector<int32_t>* axes = axes_manager->getAxisValues();
+	uint8_t count = 0;
+	for(auto val : *axes){
+		setHidReportAxis(&reportHID,count++,val);
 	}
 
-	for(AnalogSource* ain : analog_inputs){
+	// Fill remaining values with analog inputs
+	for(auto &ain : analog_inputs){
 		std::vector<int32_t>* axes = ain->getAxes();
 		for(int32_t val : *axes){
 			if(count >= analogAxisCount)
 				break;
-			*analogAxesReport[count++] = val;
+			setHidReportAxis(&reportHID,count++,val);
 		}
 	} // Fill rest
 	for(;count<analogAxisCount; count++){
-		*analogAxesReport[count] = 0;
+		setHidReportAxis(&reportHID,count,0);
 	}
 
 	/*
-	 * Only send a new report if actually changed since last time or timeout
+	 * Only send a new report if actually changed since last time or timeout and hid is ready
 	 */
-	if(reportSendCounter++ > 100 || (memcmp(&lastReportHID,&reportHID,sizeof(reportHID_t)) != 0) ){
-		USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS, reinterpret_cast<uint8_t*>(&reportHID), sizeof(reportHID_t));
+	if( (reportSendCounter++ > 100 || (memcmp(&lastReportHID,&reportHID,sizeof(reportHID_t)) != 0) ) && tud_hid_n_ready(0)){
+		tud_hid_report(0, reinterpret_cast<uint8_t*>(&reportHID), sizeof(reportHID_t));
 		lastReportHID = reportHID;
 		reportSendCounter = 0;
 	}
@@ -540,85 +264,71 @@ void FFBWheel::send_report(){
 }
 
 void FFBWheel::emergencyStop(){
-	drv->stop();
-	emergency = true;
+	axes_manager->emergencyStop();
 }
 
 void FFBWheel::timerElapsed(TIM_HandleTypeDef* htim){
-	if(htim == this->timer_update){
-		update_flag = true;
-	}
+//	if(htim == this->timer_update){
+//		control.update_flag = true;
+//	}
 }
-// Called at 1khz. Triggers effect updates
-void FFBWheel::SOF(){
-	if(usb_disabled) // If previously disabled reenable
-		usbResume();
-	usb_update_flag = true;
-	// USB clocked update callback
-}
+
 
 /*
  * USB unplugged
  */
 void FFBWheel::usbSuspend(){
-	if(usb_disabled)
+	if(control.usb_disabled)
 		return;
-	usb_disabled = true;
+	control.usb_disabled = true;
 	ffb->stop_FFB();
 	ffb->reset_ffb(); // Delete all effects
-	if(drv != nullptr){
-		drv->turn(0);
-		drv->stop();
-	}
-
+	axes_manager->usbSuspend();
 }
+
 void FFBWheel::usbResume(){
-	usb_disabled = false;
-	if(drv != nullptr){
-		drv->start();
+#ifdef E_STOP_Pin
+	if(control.emergency && HAL_GPIO_ReadPin(E_STOP_GPIO_Port, E_STOP_Pin) != GPIO_PIN_RESET){ // Reconnected after emergency stop
+		control.emergency = false;
 	}
+#endif
+	control.usb_disabled = false;
+	axes_manager->usbResume();
 }
 
-void FFBWheel::usbInit(USBD_HandleTypeDef* hUsbDeviceFS){
-	usbInit_HID_Wheel(hUsbDeviceFS);
+void FFBWheel::usbInit(){
+	this->usbdev = std::make_unique<USBdevice>(&usb_devdesc_ffboard_composite,usb_cdc_hid_conf,&usb_ffboard_strings_default);
+	UsbHidHandler::setHidDesc(hid_ffb_desc);
+	usbdev->registerUsb();
 }
 
 // External interrupt pins
 void FFBWheel::exti(uint16_t GPIO_Pin){
 	if(GPIO_Pin == BUTTON_A_Pin){
 		// Button down?
-		if(HAL_GPIO_ReadPin(BUTTON_A_GPIO_Port, BUTTON_A_Pin) && this->enc != nullptr){
-			this->encResetFlag = true;
+		if(HAL_GPIO_ReadPin(BUTTON_A_GPIO_Port, BUTTON_A_Pin)){
+			this->control.resetEncoder = true;
 		}
 	}
 #ifdef E_STOP_Pin
 	if(GPIO_Pin == E_STOP_Pin){ // Emergency stop. low active
-		if(HAL_GPIO_ReadPin(BUTTON_A_GPIO_Port, BUTTON_A_Pin) == GPIO_PIN_RESET){
+		if(HAL_GPIO_ReadPin(E_STOP_GPIO_Port, E_STOP_Pin) == GPIO_PIN_RESET){
 			emergencyStop();
 		}
 	}
 #endif
 }
 
-
 /*
- * Helper functions for encoding and decoding flash variables
+ * Error handling
  */
-FFBWheelConfig FFBWheel::decodeConfFromInt(uint16_t val){
-	// 0-7 Enc 8-15 Mot
-	FFBWheelConfig conf;
-	conf.enctype = ((val) & 0x3f);
-	conf.drvtype = ((val >> 6) & 0x3f);
-	conf.axes = (val >> 12) & 0x3;
-	conf.invertX = (val >> 14) & 0x1;
-	return conf;
+void FFBWheel::errorCallback(Error &error, bool cleared){
+	if(error.type == ErrorType::critical){
+		if(!cleared){
+			this->emergencyStop();
+		}
+	}
+	if(!cleared){
+		pulseErrLed();
+	}
 }
-uint16_t FFBWheel::encodeConfToInt(FFBWheelConfig conf){
-	uint16_t val = (uint8_t)conf.enctype & 0x3f;
-	val |= ((uint8_t)conf.drvtype & 0x3f) << 6;
-	val |= (conf.axes & 0x03) << 12;
-	val |= (conf.invertX & 0x1) << 14;
-	return val;
-}
-
-

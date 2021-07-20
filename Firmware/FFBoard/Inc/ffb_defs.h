@@ -10,7 +10,7 @@
 
 #include "cppmain.h"
 #include "Filters.h"
-
+#include "constants.h" // For #define MAX_AXIS
 #define FFB_ID_OFFSET 0x00
 #define MAX_EFFECTS 40
 
@@ -88,6 +88,9 @@
 #define HID_ENABLE_ACTUATORS_MASK 0xFD
 #define HID_EFFECT_PLAYING 		0x10
 
+#define HID_DIRECTION_ENABLE 0x04
+#define FFB_EFFECT_DURATION_INFINITE 0xffff
+
 // Only include these for cpp
 #ifdef __cplusplus
 
@@ -96,7 +99,7 @@
 
 struct  __attribute__((__packed__)) reportHID_t {
 		uint8_t id = 1;
-		uint32_t buttons = 0;
+		uint64_t buttons = 0;
 		int16_t X = 0;
 		int16_t Y = 0;
 		int16_t Z = 0;
@@ -106,6 +109,40 @@ struct  __attribute__((__packed__)) reportHID_t {
 		int16_t Dial = 0;
 		int16_t Slider = 0;
 };
+
+/*
+ * Helper function to access analog axes in packed HID report struct
+ */
+inline void setHidReportAxis(reportHID_t *report, uint8_t idx, int16_t val){
+	switch(idx){
+	case 0:
+		report->X = val;
+		break;
+	case 1:
+		report->Y = val;
+		break;
+	case 2:
+		report->Z = val;
+		break;
+	case 3:
+		report->RX = val;
+		break;
+	case 4:
+		report->RY = val;
+		break;
+	case 5:
+		report->RZ = val;
+		break;
+	case 6:
+		report->Dial = val;
+		break;
+	case 7:
+		report->Slider = val;
+		break;
+	default:
+		return;
+	}
+}
 
 typedef struct
 {
@@ -125,13 +162,17 @@ typedef struct
 	uint16_t	duration = 0; // 0..32767 ms
 	uint16_t	triggerRepeatInterval = 0; // 0..32767 ms
 	uint16_t	samplePeriod = 0;	// 0..32767 ms
+	uint16_t	startDelay = 0;	// 0..32767 ms
 	uint8_t		gain = 255;	// 0..255 scaler
 	uint8_t		triggerButton = 0;	// button ID. unused
 	uint8_t		enableAxis = 0; // bits: 0=X, 1=Y, 2=DirectionEnable
-	uint8_t		directionX = 0;	// angle (0=0 .. 255=360deg)
-	uint8_t		directionY = 0;	// angle (0=0 .. 255=360deg)
-//	uint16_t	typeSpecificBlockOffsetX = 0; // Needed?
-//	uint16_t	typeSpecificBlockOffsetY = 0;
+	uint16_t	directionX = 0;	// angle (0=0 .. 36000=360deg)
+	uint16_t	directionY = 0;	// angle (0=0 .. 36000=360deg)
+#if MAX_AXIS == 3
+	uint8_t directionZ = 0; // angle (0=0 .. 255=360deg)
+#endif
+	//	uint16_t	typeSpecificBlockOffsetX = 0; // Needed?
+	//	uint16_t	typeSpecificBlockOffsetY = 0;
 //	uint16_t	startDelay;	// 0..32767 ms
 } __attribute__((packed)) FFB_SetEffect_t;
 
@@ -181,30 +222,67 @@ typedef struct
 	uint16_t magnitude;
 	int16_t	offset;
 	uint16_t	phase;	// degrees
-	uint16_t	period;	// 0..32767 ms
+	uint32_t	period;	// 0..32767 ms
 } __attribute__((packed)) FFB_SetPeriodic_Data_t;
+
+typedef struct
+{
+	uint8_t reportId;
+	uint8_t effectBlockIndex;
+	uint16_t attackLevel;
+	uint16_t fadeLevel;
+	uint32_t attackTime;
+	uint32_t fadeTime;
+} __attribute__((packed)) FFB_SetEnvelope_Data_t;
+
+typedef struct
+{
+	uint8_t reportId;
+	uint8_t effectBlockIndex;
+	uint16_t startLevel;
+	uint16_t endLevel;
+} __attribute__((packed)) FFB_SetRamp_Data_t;
+
+typedef struct
+{
+	int16_t cpOffset = 0; // Center point
+	int16_t positiveCoefficient = 0;
+	int16_t negativeCoefficient = 0;
+	uint16_t positiveSaturation = 0;
+	uint16_t negativeSaturation = 0;
+	uint16_t deadBand = 0;
+
+} __attribute__((packed)) FFB_Effect_Condition;
 
 // Internal struct for storing effects
 typedef struct
 {
 	volatile uint8_t state = 0;
-	uint8_t 	type=FFB_EFFECT_NONE; // Type
-	uint8_t 	gain=255;	// Scaler. often unused
-	int16_t		positiveCoefficient=0;
-	int16_t		negativeCoefficient=0;
-	uint16_t	positiveSaturation=0;
-	uint16_t	negativeSaturation=0;
-	int16_t 	magnitude = 0;	// High res intensity of effect
-	int16_t 	phase=0;
-	int16_t 	offset=0;	// Center point
-	int32_t 	last_value = 0;
-	Biquad* 	filter = nullptr;	// Optional filter pointer for friction effect
-	uint16_t 	counter=0;	// Elapsed time in ms
-	uint16_t 	period=0;
-	uint16_t 	duration=0,fadeTime=0,attackTime=0;	// Duration in ms
-	uint16_t 	samplePeriod = 0;
-	uint8_t 	axis = 0;	// Active axis
-	uint16_t	deadBand = 0;
+	uint8_t type = FFB_EFFECT_NONE; // Type
+	int16_t offset = 0;				// Center point
+	uint8_t gain = 255;				// Scaler. often unused
+	int16_t magnitude = 0;			// High res intensity of effect
+	int16_t startLevel = 0;			// Ramp effect
+	int16_t endLevel = 0;			// Ramp effect
+	uint8_t enableAxis = 0;			// Active axis
+	uint16_t directionX = 0;		// angle (0=0 .. 36000=360deg)
+	uint16_t directionY = 0;		// angle (0=0 .. 36000=360deg)
+#if MAX_AXIS == 3
+	uint8_t directionZ = 0; // angle (0=0 .. 255=360deg)
+#endif
+	uint8_t conditionsCount = 0;
+	FFB_Effect_Condition conditions[MAX_AXIS];
+	int16_t phase = 0;
+	uint16_t period = 0;
+	uint32_t duration = 0;					 // Duration in ms
+	uint16_t attackLevel = 0, fadeLevel = 0; // Envelope effect
+	uint32_t attackTime = 0, fadeTime = 0;	 // Envelope effect
+
+	std::unique_ptr<Biquad> filter[MAX_AXIS] = { nullptr };  // Optional filter
+	uint16_t startDelay = 0;
+	uint32_t startTime = 0;	  // Elapsed time in ms before effect starts
+	uint16_t samplePeriod = 0;
+	bool useEnvelope = false;
 } FFB_Effect;
 
 

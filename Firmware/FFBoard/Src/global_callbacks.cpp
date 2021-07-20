@@ -8,7 +8,6 @@
 #include "vector"
 #include <global_callbacks.h>
 #include "main.h"
-#include "usbd_cdc_if.h"
 #include "cppmain.h"
 #include "FFBoardMain.h"
 #include "ledEffects.h"
@@ -16,16 +15,25 @@
 #include "constants.h"
 
 #include "UsbHidHandler.h"
+#include "HidCommandHandler.h"
 #include "PersistentStorage.h"
 #include "ExtiHandler.h"
 #include "UartHandler.h"
 #include "AdcHandler.h"
 #include "TimerHandler.h"
 #include "CommandHandler.h"
+#include "EffectsCalculator.h"
 #include "SpiHandler.h"
 #ifdef CANBUS
 #include "CanHandler.h"
 #endif
+
+#ifdef MIDI
+#include "MidiHandler.h"
+#include "midi_device.h"
+#endif
+
+#include "cdc_device.h"
 
 
 extern FFBoardMain* mainclass;
@@ -43,9 +51,9 @@ volatile uint32_t ADC3_BUF[ADC3_CHANNELS] = {0};
 extern ADC_HandleTypeDef hadc3;
 #endif
 
-volatile char uart_buf[UART_BUF_SIZE] = {0};
-
-
+/**
+ * Callback after an adc finished conversion
+ */
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 	//Pulse braking mosfet if internal voltage is higher than supply.
 	if(hadc == &VSENSE_HADC)
@@ -61,13 +69,19 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 	}
 }
 
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
+__weak void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim){
+	HAL_TIM_PeriodElapsedCallback_CPP(htim);
+}
+
+void HAL_TIM_PeriodElapsedCallback_CPP(TIM_HandleTypeDef* htim) {
 	for(TimerHandler* c : TimerHandler::timerHandlers){
 		c->timerElapsed(htim);
 	}
 }
 
-
+/**
+ * Callback for GPIO interrupts
+ */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	for(ExtiHandler* c : ExtiHandler::extiHandlers){
 		c->exti(GPIO_Pin);
@@ -75,16 +89,14 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
-	if(huart == &UART_PORT){
-		  // Received uart data
-		if(HAL_UART_Receive_IT(&UART_PORT,(uint8_t*)uart_buf,UART_BUF_SIZE) != HAL_OK){
-			pulseErrLed(); // Should never happen
-			return;
-		}
+	for(UartHandler* c : UartHandler::getUARTHandlers()){
+		c->uartRxComplete(huart);
+	}
+}
 
-		for(UartHandler* c : UartHandler::uartHandlers){
-			c->uartRcv((char*)uart_buf);
-		}
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart){
+	for(UartHandler* c : UartHandler::getUARTHandlers()){
+		c->uartTxComplete(huart);
 	}
 }
 
@@ -203,58 +215,93 @@ void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi){
 	}
 }
 
+// USB Callbacks
+USBdevice* usb_device;
+uint8_t const * tud_descriptor_device_cb(void){
+  return usb_device->getUsbDeviceDesc();
+}
 
+uint8_t const * tud_descriptor_configuration_cb(uint8_t index){
+	return usb_device->getUsbConfigurationDesc(index);
+}
 
-// USB Specific callbacks
-void CDC_Callback(uint8_t* Buf, uint32_t *Len){
+uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid){
+	return usb_device->getUsbStringDesc(index, langid);
+}
+
+uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf){
+	return UsbHidHandler::getHidDesc();
+}
+
+void tud_cdc_rx_cb(uint8_t itf){
 	pulseSysLed();
+	uint8_t buf[64];
+	uint32_t count = tud_cdc_n_read(itf,buf, sizeof(buf));
 	if(mainclass!=nullptr)
-		mainclass->cdcRcv((char*)Buf,Len);
-}
-void CDC_Finished(){
-	if(mainclass!=nullptr)
-		mainclass->cdcFinished();
+		mainclass->cdcRcv((char*)buf,&count);
 }
 
-/* USB Out Endpoint callback
+void tud_cdc_tx_complete_cb(uint8_t itf){
+	if(mainclass!=nullptr)
+		mainclass->cdcFinished(itf);
+}
+
+
+
+/**
+ * USB Out Endpoint callback
  * HID Out and Set Feature
  */
-void USBD_OutEvent_HID(uint8_t* report){
+void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize){
 	if(UsbHidHandler::globalHidHandler!=nullptr)
-		UsbHidHandler::globalHidHandler->hidOut(report);
+		UsbHidHandler::globalHidHandler->hidOut(report_id,report_type,buffer,bufsize);
 
-	if(report[0] == HID_ID_CUSTOMCMD){ // called only for the vendor defined report
-		for(UsbHidHandler* c : UsbHidHandler::hidCmdHandlers){
-			c->hidOutCmd((HID_Custom_Data_t*)(report));
+	if(report_id == HID_ID_CUSTOMCMD){ // called only for the vendor defined report
+		for(HidCommandHandler* c : HidCommandHandler::hidCmdHandlers){
+			c->processHidCommand((HID_Custom_Data_t*)(buffer));
 		}
 	}
+
 }
-/*
+
+/**
  * HID Get Feature
  */
-void USBD_GetEvent_HID(uint8_t id,uint16_t len,uint8_t** return_buf){
+uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type,uint8_t* buffer, uint16_t reqlen){
 	if(UsbHidHandler::globalHidHandler != nullptr)
-		UsbHidHandler::globalHidHandler->hidGet(id, len, return_buf);
-
+		return UsbHidHandler::globalHidHandler->hidGet(report_id, report_type, buffer,reqlen);
+	return 0;
 }
-
-void USB_SOF(){
-	if(mainclass!=nullptr)
-		mainclass->SOF();
+#ifdef MIDI
+MidiHandler* midihandler = nullptr;
+/**
+ * Midi receive callback
+ */
+void tud_midi_rx_cb(uint8_t itf){
+	if(!midihandler) return;
+	if(tud_midi_n_receive(0,MidiHandler::buf)){
+		midihandler->midiRx(itf, MidiHandler::buf);
+	}
 }
+#endif
 
-
-/*
+/**
  * Called on usb disconnect and suspend
  */
-void USBD_Suspend(){
+void tud_suspend_cb(){
+	mainclass->usbSuspend();
+}
+void tud_umount_cb(){
 	mainclass->usbSuspend();
 }
 
-/*
- * Called on usb resume. Not called on connect... use SOF instead to detect first activity
+/**
+ * Called on usb mount
  */
-void USBD_Resume(){
+void tud_mount_cb(){
+	mainclass->usbResume();
+}
+void tud_resume_cb(){
 	mainclass->usbResume();
 }
 
@@ -294,5 +341,3 @@ void startADC(){
 	HAL_ADC_Start_DMA(&hadc3, (uint32_t*)ADC3_BUF, ADC3_CHANNELS);
 	#endif
 }
-
-

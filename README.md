@@ -14,6 +14,8 @@
 	</div>
 </div>
 
+
+
 # Open FFBoard
 The Open FFBoard is an open source force feedback interface with the goal of creating a platform for highly compatible simulation devices.
 
@@ -31,7 +33,9 @@ These git submodules can be pulled with `git submodule init` and `git submodule 
 Updates often require matching firmware and GUI versions!
 
 ## Documentation
-Documentation will be added in the [GitHub Wiki](https://github.com/Ultrawipf/OpenFFBoard/wiki)
+Documentation will be added in the [GitHub Wiki](https://github.com/Ultrawipf/OpenFFBoard/wiki).
+
+Code summary and documentation of the latest stable version is available as a [Doxygen site](https://ultrawipf.github.io/ffboard_doxygen/).
 
 For discussion and progress updates we have a [Discord server](https://discord.com/invite/gHtnEcP).
 

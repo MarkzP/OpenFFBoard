@@ -4,6 +4,11 @@
 #include "flash_helpers.h"
 #include "global_callbacks.h"
 #include "cpp_target_config.h"
+#include "cmsis_os.h"
+#include "stm32f4xx_hal_flash.h"
+#include "RessourceManager.h"
+
+#include "tusb.h"
 
 uint32_t clkmhz = HAL_RCC_GetHCLKFreq() / 100000;
 extern TIM_HandleTypeDef TIM_MICROS;
@@ -13,13 +18,19 @@ extern IWDG_HandleTypeDef hiwdg; // Watchdog
 #endif
 
 bool running = true;
+bool mainclassChosen = false;
 
 uint16_t main_id = 0;
 
 FFBoardMain* mainclass __attribute__((section (".ccmram")));
 ClassChooser<FFBoardMain> mainchooser(class_registry);
 
-USBD_HandleTypeDef hUsbDeviceFS __attribute__((section (".ccmram")));
+
+#define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE/2)
+StackType_t  usb_device_stack[USBD_STACK_SIZE];
+StaticTask_t usb_device_taskdef;
+
+RessourceManager ressourceManager = RessourceManager();
 
 void cppmain() {
 	// Flash init
@@ -42,25 +53,22 @@ void cppmain() {
 			Error_Handler();
 		}
 	}
-	// Enable uart interrupt
-	extern volatile char uart_buf[UART_BUF_SIZE];
-	HAL_UART_Receive_IT(&UART_PORT,(uint8_t*)uart_buf,1);
-
 
 	mainclass = mainchooser.Create(main_id);
-	usb_init(&hUsbDeviceFS); // Init usb
+	if(mainclass == nullptr){ // invalid id
+		mainclass = mainchooser.Create(0); // Baseclass
+	}
+	mainclassChosen = true;
+
+	mainclass->usbInit(); // Let mainclass initialize usb
 
 	while(running){
-		// TODO dynamically add functions to loop
 		mainclass->update();
-		mainclass->updateSys();
 		updateLeds();
-
-		external_spi.process();
-
+		//external_spi.process();
 		refreshWatchdog();
+		taskYIELD(); // Change task if higher priority task wants to run
 	}
-
 }
 
 void refreshWatchdog(){
@@ -69,13 +77,22 @@ void refreshWatchdog(){
 #endif
 }
 
-void usb_init(USBD_HandleTypeDef* hUsbDeviceFS){
-	mainclass->usbInit(hUsbDeviceFS); // Let mainclass initialize usb
-}
 
 
 uint32_t micros(){
 	//return DWT->CYCCNT / clkmhz;
 	return TIM_MICROS.Instance->CNT;
 }
+
+
+void* malloc(size_t size)
+{
+    return pvPortMalloc(size);
+}
+
+void free(void *p)
+{
+    vPortFree(p);
+}
+
 

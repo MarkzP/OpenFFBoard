@@ -37,11 +37,12 @@
 
 #define TIM_ENC htim3
 // Timer 3 is used by the encoder.
-#define TIM_PWM htim2
+#define TIM_USER htim9
 
 #define TIM_MICROS htim10
 extern UART_HandleTypeDef huart1;
-#define UART_PORT huart1 // main uart port
+#define UART_PORT_EXT huart1 // main uart port
+
 #define UART_BUF_SIZE 1 // How many bytes to expect via DMA
 
 extern ADC_HandleTypeDef hadc1;
@@ -61,6 +62,11 @@ extern volatile uint32_t ADC1_BUF[ADC1_CHANNELS]; // Buffer
 
 #define BUTTON_PINS 8
 
+/*
+ * Scaler to convert from ADC counts to amps
+ * Depends on shunt and amplifier values
+ */
+#define TMC_CURRENTSCALER 2.5 / (0x7fff * 60.0 * 0.0015)
 
 
 #define HSPIDRV hspi1
@@ -69,6 +75,8 @@ extern SPI_HandleTypeDef HSPIDRV;
 extern SPI_HandleTypeDef HSPI2;
 
 // Flash. 2 pages used
+#define PAGE0_ID               FLASH_SECTOR_1
+#define PAGE1_ID               FLASH_SECTOR_2
 #define EEPROM_START_ADDRESS  ((uint32_t)0x08004000) /* EEPROM emulation start address: from sector1*/
 #define PAGE_SIZE             (uint32_t)0x4000  /* Page size = 16KByte */
 

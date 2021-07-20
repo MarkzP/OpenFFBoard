@@ -13,7 +13,7 @@
 
 enum class EncoderType : uint8_t {NONE=0,incremental=1,incrementalIndex=2,absolute=3};
 
-class Encoder : virtual ChoosableClass {
+class Encoder : public virtual ChoosableClass {
 public:
 	Encoder();
 	virtual ~Encoder();
@@ -23,14 +23,18 @@ public:
 	virtual EncoderType getType();
 
 	virtual int32_t getPos();
+	virtual float getPos_f();
+
 	virtual void setPos(int32_t pos);
 
-
 	virtual uint32_t getCpr(); // Encoder counts per rotation
-	virtual void setCpr(uint32_t cpr);	// Encoder counts per rotation
 
-private:
+
+	static const std::vector<class_entry<Encoder> > all_encoders;
+
+protected:
 	uint32_t cpr = 0;
 };
+
 
 #endif /* ENCODER_H_ */

@@ -9,13 +9,14 @@
  */
 
 
-#define SW_VERSION "1.2.4" // Version string
+#define SW_VERSION "1.3.14" // Version string
+#define MIN_SW_CONFIGURATOR "1.3.11" // Minimal supported configurator version
+
+#define MAX_AXIS 2 // ONLY USE 2 for now else screws HID Reports
 
 
-#define CDC_INTERFACE 0x00
-#define CDC_INTERFACE_DATA 0x01
-
-#define CDC_IDX 0
-#define HID_IDX 1
+#ifndef CANBUS
+#undef ODRIVE
+#endif
 
 #endif

@@ -14,13 +14,14 @@
 #include "vector"
 #include "CommandHandler.h"
 
-class AnalogSource : virtual ChoosableClass, public PersistentStorage{
+class AnalogSource : public virtual ChoosableClass, public PersistentStorage{
 public:
 	AnalogSource();
 	virtual ~AnalogSource();
 
 	const virtual ClassIdentifier getInfo() = 0;
 	static ClassIdentifier info;
+	static bool isCreatable() {return true;};
 
 	virtual std::vector<int32_t>* getAxes();
 	std::vector<int32_t> buf;

@@ -9,19 +9,23 @@
 #define CPP_TARGET_CONFIG_H_
 
 #include "SPI.h"
+#include "UART.h"
+#include "target_constants.h"
+#include "CAN.h"
 
 extern SPIPort external_spi;
+extern SPIPort motor_spi;
 
-const std::vector<OutputPin*>& getExternalSPI_CSPins();
+#ifdef UART_PORT_MOTOR
+extern UARTPort motor_uart;
+#endif
 
-inline OutputPin& getExternalSPI_CSPin(unsigned pinNumber) {
-	auto csPins{getExternalSPI_CSPins()};
-	if (pinNumber > csPins.size()) {
-		return *csPins[0];
-	}
+#ifdef UART_PORT_EXT
+extern UARTPort external_uart;
+#endif
 
-	return *csPins[pinNumber - 1];
-}
-
+#ifdef CANBUS
+extern CANPort canport;
+#endif
 
 #endif
