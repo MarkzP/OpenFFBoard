@@ -199,8 +199,8 @@ void MotorMPM::saveFlash()
 
 void MotorMPM::restoreFlash()
 {
-	uint16_t u_offset;
-	Flash_Read(MPM_OFFSET_ADR, &u_offset);
-	offset = (int16_t)u_offset;
+	//uint16_t u_offset;
+	//Flash_Read(MPM_OFFSET_ADR, &u_offset);
+	offset = -27944; //(int16_t)u_offset;
 }
 

@@ -42,6 +42,9 @@ void cppmain() {
 			Error_Handler();
 		}
 	}
+
+	main_id = 1;
+
 	// Enable uart interrupt
 	extern volatile char uart_buf[UART_BUF_SIZE];
 	HAL_UART_Receive_IT(&UART_PORT,(uint8_t*)uart_buf,1);

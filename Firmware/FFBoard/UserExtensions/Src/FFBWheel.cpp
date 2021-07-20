@@ -103,39 +103,48 @@ FFBWheel::~FFBWheel() {
  */
 void FFBWheel::restoreFlash(){
 	// read all constants
-	uint16_t confint;
-	if(Flash_Read(ADR_FFBWHEEL_CONFIG, &confint)){
-		this->conf = FFBWheel::decodeConfFromInt(confint);
-	}else{
-		pulseErrLed();
-	}
+	//uint16_t confint;
+	//if(Flash_Read(ADR_FFBWHEEL_CONFIG, &confint)){
+		//this->conf = FFBWheel::decodeConfFromInt(confint);
+	//}else{
+		//pulseErrLed();
+	//}
+
+	this->conf.drvtype = 3;
+	this->conf.enctype = 3;
+	this->conf.axes = 1;
 
 	setDrvType(this->conf.drvtype);
 	setEncType(this->conf.enctype);
 
-	Flash_Read(ADR_FFBWHEEL_BUTTONCONF, &this->btnsources);
+	//Flash_Read(ADR_FFBWHEEL_BUTTONCONF, &this->btnsources);
+	this->btnsources = 1;
+
 	setBtnTypes(this->btnsources);
 
-	Flash_Read(ADR_FFBWHEEL_ANALOGCONF, &this->ainsources);
+	//Flash_Read(ADR_FFBWHEEL_ANALOGCONF, &this->ainsources);
+	this->ainsources = 0;
 	setAinTypes(this->ainsources);
 
 
-	uint16_t cpr = 0;
-	if(Flash_Read(ADR_TMC1_CPR, &cpr)){
-		this->enc->setCpr(cpr);
-	}else{
-		pulseErrLed();
-	}
+	//uint16_t cpr = 0;
+	//if(Flash_Read(ADR_TMC1_CPR, &cpr)){
+		this->enc->setCpr((uint32_t)(1 << 16));
+	//}else{
+		//pulseErrLed();
+	//}
 
-	Flash_Read(ADR_FFBWHEEL_POWER, &this->power);
-	Flash_Read(ADR_FFBWHEEL_DEGREES, &this->degreesOfRotation);
+	//Flash_Read(ADR_FFBWHEEL_POWER, &this->power);
+	//Flash_Read(ADR_FFBWHEEL_DEGREES, &this->degreesOfRotation);
+	this->power = 10500;
+	this->degreesOfRotation = 345;
 	nextDegreesOfRotation = degreesOfRotation;
 
-	uint16_t esval;
-	if(Flash_Read(ADR_FFBWHEEL_ENDSTOP,&esval)){
-		this->fx_ratio_i = esval & 0xff;
-		this->endstop_gain_i = (esval >> 8) & 0xff;
-	}
+	//uint16_t esval;
+	//if(Flash_Read(ADR_FFBWHEEL_ENDSTOP,&esval)){
+		this->fx_ratio_i = 0;//esval & 0xff;
+		this->endstop_gain_i = 10;//(esval >> 8) & 0xff;
+	//}
 }
 // Saves parameters to flash
 void FFBWheel::saveFlash(){

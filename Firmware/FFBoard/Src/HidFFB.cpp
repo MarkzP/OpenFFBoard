@@ -32,15 +32,19 @@ void HidFFB::saveFlash(){
 	Flash_Write(ADR_FFB_EFFECTS2, this->cfFilter_f);
 }
 void HidFFB::restoreFlash(){
-	uint16_t effects1 = 0;
-	if(Flash_Read(ADR_FFB_EFFECTS1, &effects1)){
-		this->setFrictionStrength((effects1 >> 8) & 0xff);
-		this->setIdleSpringStrength(effects1 & 0xff);
-	}
-	effects1 = 0;
-	if(Flash_Read(ADR_FFB_EFFECTS2, &effects1)){
-		setCfFilter(effects1);
-	}
+//	uint16_t effects1 = 0;
+//	if(Flash_Read(ADR_FFB_EFFECTS1, &effects1)){
+//		this->setFrictionStrength((effects1 >> 8) & 0xff);
+//		this->setIdleSpringStrength(effects1 & 0xff);
+//	}
+//	effects1 = 0;
+//	if(Flash_Read(ADR_FFB_EFFECTS2, &effects1)){
+//		setCfFilter(effects1);
+//	}
+
+	this->setFrictionStrength(30);
+	this->setIdleSpringStrength(0);
+	setCfFilter(500);
 }
 
 uint8_t HidFFB::HID_SendReport(uint8_t *report,uint16_t len){
