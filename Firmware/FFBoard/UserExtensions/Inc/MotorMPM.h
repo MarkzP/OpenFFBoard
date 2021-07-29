@@ -8,20 +8,38 @@
 #ifndef MOTORMPM_H_
 #define MOTORMPM_H_
 
-#include <MotorDriver.h>
-#include <Encoder.h>
-#include <ExtiHandler.h>
-#include <SpiHandler.h>
-#include <CommandHandler.h>
+#include "constants.h"
+#include <vector>
+#include "cppmain.h"
+#include "MotorDriver.h"
+#include "Encoder.h"
+#include "ChoosableClass.h"
+#include "PersistentStorage.h"
+#include "CommandHandler.h"
+#include "SpiHandler.h"
+#include "thread.hpp"
+#include "ExtiHandler.h"
+#include "SPI.h"
+
+#include "semaphore.hpp"
+#include "OutputPin.h"
+#include "cpp_target_config.h"
 
 
-class MotorMPM: public MotorDriver, public Encoder, public ExtiHandler, public SpiHandler, public CommandHandler {
+#define SPITIMEOUT 500
+#define TMC_THREAD_MEM 512
+#define TMC_THREAD_PRIO 25 // Must be higher than main thread
+
+
+class MotorMPM: public MotorDriver, public PersistentStorage, public Encoder, public CommandHandler, public SPIDevice, public ExtiHandler {
 public:
 	MotorMPM();
 	virtual ~MotorMPM();
 
 	static ClassIdentifier info;
 	const ClassIdentifier getInfo();
+
+	bool isCreatable();
 
 	void turn(int16_t power);
 	void stop();
@@ -32,13 +50,17 @@ public:
 
 	uint32_t getCpr(); // Encoder counts per rotation
 
+	bool hasIntegratedEncoder() { return true; }
+
 	void exti(uint16_t GPIO_Pin);
-	void SpiTxRxCplt(SPI_HandleTypeDef *hspi);
+	void spiTxRxCompleted(SPIPort* port);
 
 	ParseStatus command(ParsedCommand* cmd,std::string* reply);
 
 	void saveFlash();
 	void restoreFlash();
+
+	static bool mpmDriverInUse;
 
 private:
 	int32_t encoderAngle;
@@ -48,10 +70,6 @@ private:
 	int32_t rotation;
 	int32_t offset;
 	bool aligned;
-
-	SPI_HandleTypeDef *spi;
-	GPIO_TypeDef *csport;
-	uint16_t cspin;
 
 	volatile uint8_t spiTx[2];
 	volatile uint8_t spiRx[2];
