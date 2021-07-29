@@ -12,7 +12,7 @@
 
 
 ClassIdentifier MotorMPM::info =
-{ .name = "MPM", .id = 4, .unique = '0', .hidden = false };
+{ .name = "MPM", .id = 20, .unique = '0', .hidden = false };
 
 
 const ClassIdentifier MotorMPM::getInfo()
@@ -67,7 +67,6 @@ MotorMPM::MotorMPM() : SPIDevice(motor_spi, OutputPin(*SPI1_SS1_GPIO_Port, SPI1_
 MotorMPM::~MotorMPM()
 {
 	MotorMPM::mpmDriverInUse = false;
-	//HAL_GPIO_WritePin(DRV_ENABLE_GPIO_Port,DRV_ENABLE_Pin,GPIO_PIN_RESET);
 }
 
 
@@ -80,8 +79,6 @@ void MotorMPM::turn(int16_t power)
 void MotorMPM::stop()
 {
 	enabled = false;
-
-	//HAL_GPIO_WritePin(DRV_ENABLE_GPIO_Port,DRV_ENABLE_Pin,GPIO_PIN_RESET);
 
 	torque = 0;
 }
@@ -96,8 +93,6 @@ void MotorMPM::start()
 	}
 
 	torque = 0;
-
-	//HAL_GPIO_WritePin(DRV_ENABLE_GPIO_Port,DRV_ENABLE_Pin,GPIO_PIN_SET);
 
 	enabled = true;
 }
@@ -144,37 +139,6 @@ void MotorMPM::exti(uint16_t GPIO_Pin)
 	}
 }
 
-
-//void MotorMPM::SpiTxRxCplt(SPI_HandleTypeDef *hspi)
-//{
-//	if (hspi == spi)
-//	{
-//		int16_t tmpAngle = (int16_t)(((uint16_t)spiRx[0] << 8) + (uint16_t)spiRx[1]);
-//		encoderAngle = tmpAngle;
-//
-//		if (aligned)
-//		{
-//			int32_t delta =  encoderAngle - lastEncoderAngle;
-//
-//			if (delta > (CPR / 2))
-//			{
-//				rotation--;
-//			}
-//			else if (delta < -(CPR / 2))
-//			{
-//				rotation++;
-//			}
-//		}
-//		else
-//		{
-//			aligned = true;
-//		}
-//
-//		lastEncoderAngle = encoderAngle;
-//
-//		position = (rotation * CPR) + encoderAngle + offset;
-//	}
-//}
 
 void MotorMPM::spiTxRxCompleted(SPIPort* port)
 {
@@ -234,15 +198,15 @@ ParseStatus MotorMPM::command(ParsedCommand *cmd, std::string *reply)
 
 void MotorMPM::saveFlash()
 {
-	//uint16_t u_offset = (uint16_t)offset;
-	//Flash_Write(MPM_OFFSET_ADR, u_offset);
+	uint16_t u_offset = (uint16_t)offset;
+	Flash_Write(ADR_PWM_MODE, u_offset);
 }
 
 
 void MotorMPM::restoreFlash()
 {
 	//uint16_t u_offset;
-	//Flash_Read(MPM_OFFSET_ADR, &u_offset);
+	//Flash_Read(ADR_PWM_MODE, &u_offset);
 	offset = -27944; //(int16_t)u_offset;
 }
 
