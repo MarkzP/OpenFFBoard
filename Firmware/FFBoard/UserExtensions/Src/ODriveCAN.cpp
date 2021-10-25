@@ -72,39 +72,45 @@ ODriveCAN::~ODriveCAN() {
 }
 
 void ODriveCAN::restoreFlash(){
+	uint16_t setting1addr = ADR_ODRIVE_SETTING1_M0;
+
 	uint16_t canIds = 0x3040;
 	if(Flash_Read(ADR_ODRIVE_CANID, &canIds)){
 		if(motorId == 0){
 			nodeId = canIds & 0x3f;
 		}else if(motorId == 1){
 			nodeId = (canIds >> 6) & 0x3f;
+			setting1addr = ADR_ODRIVE_SETTING1_M1;
 		}
-		uint8_t canspd = canIds >> 12 & 0x7;
+		uint8_t canspd = (canIds >> 12) & 0x7;
 		this->setCanRate(canspd);
 	}
 
 	uint16_t settings1 = 0;
-	if(Flash_Read(ADR_ODRIVE_SETTING1, &settings1)){
+	if(Flash_Read(setting1addr, &settings1)){
 		maxTorque = (float)clip(settings1 & 0xfff, 0, 0xfff) / 100.0;
 	}
 }
 
 void ODriveCAN::saveFlash(){
+	uint16_t setting1addr = ADR_ODRIVE_SETTING1_M0;
+
 	uint16_t canIds = 0x3040;
 	Flash_Read(ADR_ODRIVE_CANID, &canIds); // Read again
 	if(motorId == 0){
 		canIds &= ~0x3F; // reset bits
 		canIds |= nodeId & 0x3f;
 	}else if(motorId == 1){
+		setting1addr = ADR_ODRIVE_SETTING1_M1;
 		canIds &= ~0xFC0; // reset bits
-		nodeId = (canIds & 0x3f) << 6;
+		canIds |= (nodeId & 0x3f) << 6;
 	}
 	canIds &= ~0x7000; // reset bits
 	canIds |= (this->baudrate & 0x7) << 12;
 	Flash_Write(ADR_ODRIVE_CANID,canIds);
 
 	uint16_t settings1 = ((int32_t)(maxTorque*100) & 0xfff);
-	Flash_Write(ADR_ODRIVE_SETTING1, settings1);
+	Flash_Write(setting1addr, settings1);
 }
 
 void ODriveCAN::Run(){
@@ -114,14 +120,14 @@ void ODriveCAN::Run(){
 		switch(state){
 		case ODriveLocalState::WAIT_READY:
 			if(this->odriveCurrentState == ODriveState::AXIS_STATE_IDLE){
-				this->state = ODriveLocalState::WAIT_CALIBRATION;
+				this->state = ODriveLocalState::WAIT_CALIBRATION; // Wait
 				this->setState(ODriveState::AXIS_STATE_FULL_CALIBRATION_SEQUENCE);
 			}
 
 		break;
 
 		// Calibration in progress. wait until its finished to enter torque mode
-		case ODriveLocalState::WAIT_CALIBRATION:
+		case ODriveLocalState::WAIT_CALIBRATION_DONE:
 			if(odriveCurrentState == ODriveState::AXIS_STATE_IDLE){
 				setState(ODriveState::AXIS_STATE_CLOSED_LOOP_CONTROL);
 				state = ODriveLocalState::START_RUNNING;
@@ -148,8 +154,8 @@ void ODriveCAN::Run(){
 
 		// If odrive is currently performing any calibration task wait until finished
 		if(odriveCurrentState == ODriveState::AXIS_STATE_FULL_CALIBRATION_SEQUENCE || odriveCurrentState == ODriveState::AXIS_STATE_MOTOR_CALIBRATION || odriveCurrentState == ODriveState::AXIS_STATE_ENCODER_OFFSET_CALIBRATION || odriveCurrentState == ODriveState::AXIS_STATE_ENCODER_HALL_PHASE_CALIBRATION || odriveCurrentState == ODriveState::AXIS_STATE_ENCODER_INDEX_SEARCH){
-			if(state != ODriveLocalState::WAIT_CALIBRATION)
-				state = ODriveLocalState::WAIT_CALIBRATION;
+			if(state != ODriveLocalState::WAIT_CALIBRATION_DONE)
+				state = ODriveLocalState::WAIT_CALIBRATION_DONE;
 		// If closed loop mode is on assume its ready and already calibrated
 		}else if(odriveCurrentState == ODriveState::AXIS_STATE_CLOSED_LOOP_CONTROL){
 			if(state != ODriveLocalState::START_RUNNING && state != ODriveLocalState::RUNNING)

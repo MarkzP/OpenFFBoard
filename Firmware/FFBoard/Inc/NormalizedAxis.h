@@ -74,12 +74,15 @@ public:
 	bool updateTorque(int32_t* totalTorque);
 	
 	virtual ParseStatus command(ParsedCommand* cmd,std::string* reply);
-    virtual void processHidCommand(HID_Custom_Data_t* data);
+    void processHidCommand(HID_Custom_Data_t* data);
 
 
 protected:
 	uint16_t degreesOfRotation = 900;					// How many degrees of range for the full gamepad range
+	uint16_t lastdegreesOfRotation = degreesOfRotation; // Used to store the previous value
 	uint16_t nextDegreesOfRotation = degreesOfRotation; // Buffer when changing range
+
+	void setDegrees(uint16_t degrees);
 
 	virtual void setPower(uint16_t power);
 	uint16_t getPower();
