@@ -20,22 +20,22 @@
 
 // Main classes
 #define FFBWHEEL
-#define MIDI
-#define TMCDEBUG
-#define CANBRIDGE
+//#define MIDI
+//#define TMCDEBUG
+//#define CANBRIDGE
 
 
 // Extra features
 #define LOCALBUTTONS
-#define SPIBUTTONS
-#define SHIFTERBUTTONS
+//#define SPIBUTTONS
+//#define SHIFTERBUTTONS
 #define ANALOGAXES
-#define TMC4671DRIVER
-#define PWMDRIVER
+//#define TMC4671DRIVER
+//#define PWMDRIVER
 #define LOCALENCODER
-#define CANBUS
-#define ODRIVE
-#define VESC
+//#define CANBUS
+//#define ODRIVE
+//#define VESC
 
 #define TMCTEMP // Enable tmc temperature shutdown
 //----------------------

@@ -8,30 +8,20 @@
 #ifndef MOTORMPM_H_
 #define MOTORMPM_H_
 
-#include "constants.h"
-#include <vector>
-#include "cppmain.h"
-#include "MotorDriver.h"
-#include "Encoder.h"
-#include "ChoosableClass.h"
-#include "PersistentStorage.h"
-#include "CommandHandler.h"
-#include "SpiHandler.h"
-#include "thread.hpp"
-#include "ExtiHandler.h"
-#include "SPI.h"
-
-#include "semaphore.hpp"
-#include "OutputPin.h"
-#include "cpp_target_config.h"
+#include <MotorDriver.h>
+#include <ExtiHandler.h>
+#include <SpiHandler.h>
+#include <PersistentStorage.h>
+#include <Encoder.h>
+#include <CommandHandler.h>
 
 
-#define SPITIMEOUT 500
-#define TMC_THREAD_MEM 512
-#define TMC_THREAD_PRIO 25 // Must be higher than main thread
-
-
-class MotorMPM: public MotorDriver, public PersistentStorage, public Encoder, public CommandHandler, public SPIDevice, public ExtiHandler {
+class MotorMPM: public MotorDriver,
+		public ExtiHandler,
+		public SpiHandler,
+		public PersistentStorage,
+		public Encoder,
+		public CommandHandler {
 public:
 	MotorMPM();
 	virtual ~MotorMPM();
@@ -39,7 +29,8 @@ public:
 	static ClassIdentifier info;
 	const ClassIdentifier getInfo();
 
-	bool isCreatable();
+	Encoder* getEncoder() override;
+	bool hasIntegratedEncoder() override;
 
 	void turn(int16_t power);
 	void stop();
@@ -50,32 +41,35 @@ public:
 
 	uint32_t getCpr(); // Encoder counts per rotation
 
-	bool hasIntegratedEncoder() { return true; }
-
 	void exti(uint16_t GPIO_Pin);
-	void spiTxRxCompleted(SPIPort* port);
+	void SpiTxRxCplt(SPI_HandleTypeDef *hspi);
+	void SpiError(SPI_HandleTypeDef *hspi);
 
 	ParseStatus command(ParsedCommand* cmd,std::string* reply);
 
 	void saveFlash();
 	void restoreFlash();
 
-	static bool mpmDriverInUse;
-
 private:
+	uint16_t rawPosition;
 	int32_t encoderAngle;
 	int32_t lastEncoderAngle;
 	int16_t torque;
+	float rawTorque;
 	int32_t position;
 	int32_t rotation;
 	int32_t offset;
 	bool aligned;
+	uint32_t spiErrors;
 
-	volatile uint8_t spiTx[2];
-	volatile uint8_t spiRx[2];
+	SPI_HandleTypeDef *spi;
+	GPIO_TypeDef *csport;
+	uint16_t cspin;
+
+	volatile uint16_t spiTx;
+	volatile uint16_t spiRx;
 
 	volatile bool enabled = false;
-	volatile bool initialized = false;
 };
 
 #endif /* MOTORMPM_H_ */

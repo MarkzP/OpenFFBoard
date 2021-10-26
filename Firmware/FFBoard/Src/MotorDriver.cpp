@@ -13,6 +13,9 @@
 #include "MotorPWM.h"
 #include "VescCAN.h"
 
+#ifndef PWMDRIVER
+#include "MotorMPM.h"
+#endif
 
 ClassIdentifier MotorDriver::info ={.name = "None" , .id=0, .unique = '0', .hidden = false};
 
@@ -33,6 +36,8 @@ const std::vector<class_entry<MotorDriver>> MotorDriver::all_drivers =
 #endif
 #ifdef PWMDRIVER
 	add_class<MotorPWM, MotorDriver>(),
+#else
+	add_class<MotorMPM, MotorDriver>(),
 #endif
 #ifdef ODRIVE
 	add_class<ODriveCAN1,MotorDriver>(),
