@@ -37,7 +37,7 @@
 //#define ODRIVE
 //#define VESC
 
-#define TMCTEMP // Enable tmc temperature shutdown
+//#define TMCTEMP // Enable tmc temperature shutdown
 //----------------------
 
 

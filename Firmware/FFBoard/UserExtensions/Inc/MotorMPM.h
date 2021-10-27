@@ -28,13 +28,14 @@ public:
 
 	static ClassIdentifier info;
 	const ClassIdentifier getInfo();
+	static bool isCreatable();
 
 	Encoder* getEncoder() override;
 	bool hasIntegratedEncoder() override;
 
 	void turn(int16_t power);
-	void stop();
-	void start();
+	void stopMotor();
+	void startMotor();
 
 	int32_t getPos();
 	void setPos(int32_t pos);
@@ -50,6 +51,8 @@ public:
 	void saveFlash();
 	void restoreFlash();
 
+	static bool mpmDriverInUse;
+
 private:
 	uint16_t rawPosition;
 	int32_t encoderAngle;
@@ -60,11 +63,11 @@ private:
 	int32_t rotation;
 	int32_t offset;
 	bool aligned;
+	bool rx;
 	uint32_t spiErrors;
+	uint32_t spiFrames;
 
 	SPI_HandleTypeDef *spi;
-	GPIO_TypeDef *csport;
-	uint16_t cspin;
 
 	volatile uint16_t spiTx;
 	volatile uint16_t spiRx;

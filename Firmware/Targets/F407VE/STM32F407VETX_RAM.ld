@@ -52,7 +52,7 @@ MEMORY
                               LENGTH = 16k
       
     EMULATED_EEPROM (rwx)   : ORIGIN = ORIGIN(FLASH_BOOT) + LENGTH(FLASH_BOOT), 
-                              LENGTH = 16k 
+                              LENGTH = 32k 
     FLASH (rx)              : ORIGIN = ORIGIN(EMULATED_EEPROM) + LENGTH(EMULATED_EEPROM),
                               LENGTH = 512k - LENGTH(FLASH_BOOT) - LENGTH(EMULATED_EEPROM)
 }
