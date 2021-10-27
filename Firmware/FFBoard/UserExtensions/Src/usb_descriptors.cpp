@@ -16,7 +16,7 @@
 // Device Descriptors
 //--------------------------------------------------------------------+
 #define USBD_VID     0x1209
-#define USBD_PID     0xFFB0
+#define USBD_PID     0xFFB2
 const tusb_desc_device_t usb_devdesc_ffboard_composite =
 {
     .bLength            = sizeof(tusb_desc_device_t),
