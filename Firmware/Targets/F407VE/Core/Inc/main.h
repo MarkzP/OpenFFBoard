@@ -163,8 +163,6 @@ void RebootDFU();
 #define GP1_GPIO_Port GPIOD
 #define LED_SYS_Pin GPIO_PIN_7
 #define LED_SYS_GPIO_Port GPIOD
-#define GP4_Pin GPIO_PIN_3
-#define GP4_GPIO_Port GPIOB
 #define GP2_Pin GPIO_PIN_4
 #define GP2_GPIO_Port GPIOB
 #define GP3_Pin GPIO_PIN_5
