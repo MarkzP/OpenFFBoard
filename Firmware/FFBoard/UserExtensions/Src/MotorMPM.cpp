@@ -28,7 +28,6 @@ MotorMPM::MotorMPM()
 {
 	MotorMPM::mpmDriverInUse = true;
 
-	rx = true;
 	encoderAngle = 0;
 	lastEncoderAngle = 0;
 	position = 0;
@@ -43,12 +42,15 @@ MotorMPM::MotorMPM()
 
 	restoreFlash();
 
-	rx = false;
+	inRxIsr = spi->Init.DataSize != SPI_DATASIZE_16BIT;
+	ready = true;
 }
 
 
 MotorMPM::~MotorMPM()
 {
+	ready = false;
+	MotorMPM::mpmDriverInUse = false;
 }
 
 bool MotorMPM::isCreatable()
@@ -88,6 +90,12 @@ void MotorMPM::startMotor()
 }
 
 
+bool MotorMPM::motorReady()
+{
+	return ready;
+}
+
+
 int32_t MotorMPM::getPos()
 {
 	return position;
@@ -110,18 +118,18 @@ uint32_t MotorMPM::getCpr()
 
 void MotorMPM::exti(uint16_t GPIO_Pin)
 {
-	if (GPIO_Pin == FLAG_Pin && !rx)
+	if (GPIO_Pin == FLAG_Pin && ready && !inRxIsr)
 	{
-		rx = true;
+		inRxIsr = true;
 
 		spiFrames++;
 
-		spiTx = enabled ? torque : 0; //(uint16_t)__builtin_bswap16(torque) : 0;
+		spiTx = enabled ? torque : 0;
 
 		if (HAL_SPI_TransmitReceive_IT(spi, (uint8_t*)(&spiTx), (uint8_t*)(&spiRx), 1) != HAL_OK)
 		{
 			spiErrors++;
-			rx = false;
+			inRxIsr = false;
 		}
 	}
 }
@@ -131,7 +139,7 @@ void MotorMPM::SpiTxRxCplt(SPI_HandleTypeDef *hspi)
 {
 	if (hspi == spi)
 	{
-		rawPosition = spiRx; //__builtin_bswap16(spiRx);
+		rawPosition = spiRx;
 
 		encoderAngle = (int16_t)rawPosition;
 
@@ -158,7 +166,7 @@ void MotorMPM::SpiTxRxCplt(SPI_HandleTypeDef *hspi)
 
 		position = (rotation * CPR) + encoderAngle + offset;
 
-		rx = false;
+		inRxIsr = false;
 	}
 }
 
@@ -167,9 +175,9 @@ void MotorMPM::SpiError(SPI_HandleTypeDef *hspi)
 {
 	if (hspi == spi)
 	{
-		//HAL_SPI_Abort_IT(spi);
+		HAL_SPI_Abort_IT(spi);
 		spiErrors++;
-		rx = false;
+		inRxIsr = false;
 	}
 }
 
@@ -182,6 +190,7 @@ ParseStatus MotorMPM::command(ParsedCommand *cmd, std::string *reply)
 	{
 		if (cmd->type == CMDtype::get)
 		{
+			*reply += ready ? "R" : "*";
 			*reply += enabled ? "E" : "*";
 			*reply +=
 					" (" + std::to_string(rotation) + " * " + std::to_string(CPR)

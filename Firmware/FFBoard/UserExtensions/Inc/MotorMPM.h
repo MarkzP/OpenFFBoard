@@ -37,6 +37,8 @@ public:
 	void stopMotor();
 	void startMotor();
 
+	bool motorReady();
+
 	int32_t getPos();
 	void setPos(int32_t pos);
 
@@ -62,8 +64,9 @@ private:
 	int32_t position;
 	int32_t rotation;
 	int32_t offset;
-	bool aligned;
-	bool rx;
+	bool ready = false;
+	bool aligned = false;
+	bool inRxIsr = true;
 	uint32_t spiErrors;
 	uint32_t spiFrames;
 
