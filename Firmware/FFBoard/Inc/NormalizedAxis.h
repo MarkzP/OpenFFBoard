@@ -66,7 +66,6 @@ public:
 	void setDamperStrength(uint8_t damper);
 	void calculateAxisEffects(bool ffb_on);
 	int32_t getTorque(); // current torque scaled as a 32 bit signed value
-	int16_t updateEndstop();
 	metric_t* getMetrics();
 
 	
@@ -105,14 +104,22 @@ private:
 	float idlespringscale = 0;
 	bool idle_center = false;
 
-	float damper_f = 25 , damper_q = 0.2;
-	const float filter_f = 500; // 1khz/2
+	float jerkProtect = 1.0f;
+	bool jerkProtectActive = false;
+
+	float damper_f = 25.0f , damper_q = 0.2f;
+	const float filter_f = 500.0f; // 1khz/2
 	const int32_t damperClip = 10000;
 	uint8_t damperIntensity = 0;
-	Biquad damperFilter = Biquad(BiquadType::lowpass, damper_f/filter_f, damper_q, 0.0);
+	Biquad damperFilter = Biquad(BiquadType::lowpass, damper_f/filter_f, damper_q, 0.0f);
 
+	float endstop_f = 200.0f, endstop_q = 0.2f;
+	Biquad endstopFilter = Biquad(BiquadType::lowpass, endstop_f/filter_f, endstop_q, 0.0f);
+	float endstopScale = 0.0f;
+	float endstopDamperScale = 0.0f;
 
     NormalizedAxisFlashAddrs_t flashAddrs;
+    void setEndstopGain(uint8_t val);
    	void setFxRatio(uint8_t val);
 	void updateTorqueScaler();
 	

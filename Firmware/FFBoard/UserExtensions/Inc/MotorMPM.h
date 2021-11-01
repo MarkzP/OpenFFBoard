@@ -66,9 +66,8 @@ private:
 	int32_t offset;
 	bool ready = false;
 	bool aligned = false;
-	bool inRxIsr = true;
+	bool positionChanged = false;
 	uint32_t spiErrors;
-	uint32_t spiFrames;
 
 	SPI_HandleTypeDef *spi;
 

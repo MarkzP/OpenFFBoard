@@ -7,6 +7,8 @@
 
 #include "NormalizedAxis.h"
 
+#include <math.h>
+
 ClassIdentifier NormalizedAxis::info = {
 	.name = "Axis",
 	.id = 1,
@@ -56,8 +58,8 @@ int32_t NormalizedAxis::getLastScaledEnc() {
 void NormalizedAxis::restoreFlash(){
 	uint16_t esval, power;
 	if(Flash_Read(flashAddrs.endstop, &esval)) {
-		fx_ratio_i = esval & 0xff;
-		endstop_gain = (esval >> 8) & 0xff;
+		setFxRatio(esval & 0xff);
+		setEndstopGain((esval >> 8) & 0xff);
 	}
 
 
@@ -126,14 +128,20 @@ void NormalizedAxis::calculateAxisEffects(bool ffb_on){
 
 	// Always active damper
 	if(damperIntensity != 0){
-		float speedFiltered = damperFilter.process(metric.current.speed) * (float)damperIntensity * 1.5;
+		float speedFiltered = damperFilter.process((float)metric.current.speed) * (float)damperIntensity * 1.5f;
 		axisEffectTorque -= clip<float, int32_t>(speedFiltered, -damperClip, damperClip);
 	}
 }
 
+
+void NormalizedAxis::setEndstopGain(uint8_t val) {
+	endstop_gain = val;
+	endstopScale = (float)val * 0.1f;
+}
+
 void NormalizedAxis::setFxRatio(uint8_t val) {
 	fx_ratio_i = val;
-	updateTorqueScaler();
+	endstopDamperScale = (float)val * 0.4f;
 }
 
 
@@ -168,8 +176,7 @@ uint16_t NormalizedAxis::getPower(){
 }
 
 void  NormalizedAxis::updateTorqueScaler() {
-	float effect_margin_scaler = ((float)fx_ratio_i/255.0);
-	torqueScaler = ((float)power / (float)0x7fff) * effect_margin_scaler;
+	torqueScaler = ((float)power / (float)0x7fff);
 }
 
 float NormalizedAxis::getTorqueScaler(){
@@ -183,21 +190,6 @@ bool NormalizedAxis::isInverted() {
 	return invertAxis; // TODO store in flash
 }
 
-/*
- * Calculate soft endstop effect
- */
-int16_t NormalizedAxis::updateEndstop(){
-	int8_t clipdir = cliptest<int32_t,int32_t>(metric.current.pos, -0x7fff, 0x7fff);
-	if(clipdir == 0){
-		return 0;
-	}
-	int32_t addtorque = clip<int32_t,int32_t>(abs(metric.current.pos)-0x7fff,-0x7fff,0x7fff);
-	addtorque *= (float)endstop_gain * 0.15f; // Apply endstop gain for stiffness
-	addtorque *= -clipdir;
-
-	return clip<int32_t,int32_t>(addtorque,-0x7fff,0x7fff);
-}
-
 void NormalizedAxis::setEffectTorque(int32_t torque) {
 	effectTorque = torque;
 }
@@ -206,15 +198,45 @@ void NormalizedAxis::setEffectTorque(int32_t torque) {
 // return true if torque is clipping
 bool NormalizedAxis::updateTorque(int32_t* totalTorque) {
 
-	if(abs(effectTorque) >= 0x7fff){
-		pulseClipLed();
-	}
+	// TODO: Jerk protection
+
 
 	// Scale effect torque
-	effectTorque  *= torqueScaler;
+	float combinedTorque = (float)(effectTorque + axisEffectTorque) * torqueScaler;
 
-	int32_t torque = effectTorque + updateEndstop();
-	torque += axisEffectTorque * torqueScaler; // Updated from effect calculator
+	float endstopTorque = 0;
+	int32_t endstopOvershoot = abs(metric.current.pos) - 0x7fff;
+	if (endstopOvershoot > 0)
+	{
+		if (metric.current.pos < 0) endstopOvershoot = -endstopOvershoot;
+
+		endstopTorque -= (float)endstopOvershoot * endstopScale;
+		endstopTorque -= (float)metric.current.speed * endstopDamperScale;
+	}
+
+	endstopTorque = endstopFilter.process(endstopTorque);
+
+	// Calculate total torque
+	int32_t torque = 0;
+	float maxEffectTorque = fabsf(combinedTorque);
+	float maxEndstop = fabsf(endstopTorque);
+	bool sameDir = (combinedTorque > 0 && endstopTorque > 0) || (combinedTorque < 0 && endstopTorque < 0);
+
+	if (maxEffectTorque > 0 && maxEndstop > 0)
+	{
+		if (sameDir)
+		{
+			torque = maxEffectTorque > maxEndstop ? combinedTorque : endstopTorque;
+		}
+		else
+		{
+			torque = endstopTorque;
+		}
+	}
+	else
+	{
+		torque = combinedTorque + endstopTorque;
+	}
 	
 	torque = (invertAxis) ? -torque : torque;
 	metric.current.torque = torque;
@@ -339,7 +361,7 @@ ParseStatus NormalizedAxis::command(ParsedCommand *cmd, std::string *reply)
 		}
 		else if (cmd->type == CMDtype::set)
 		{
-			endstop_gain = cmd->val;
+			setEndstopGain(cmd->val);
 		}
 	}
 	else if (cmd->cmd == "invert")
