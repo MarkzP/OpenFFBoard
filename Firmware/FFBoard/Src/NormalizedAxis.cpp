@@ -7,7 +7,6 @@
 
 #include "NormalizedAxis.h"
 
-#include <math.h>
 
 ClassIdentifier NormalizedAxis::info = {
 	.name = "Axis",
@@ -198,13 +197,10 @@ void NormalizedAxis::setEffectTorque(int32_t torque) {
 // return true if torque is clipping
 bool NormalizedAxis::updateTorque(int32_t* totalTorque) {
 
-	// TODO: Jerk protection
-
-
 	// Scale effect torque
 	float combinedTorque = (float)(effectTorque + axisEffectTorque) * torqueScaler;
 
-	float endstopTorque = 0;
+	float endstopTorque = 0.0f;
 	int32_t endstopOvershoot = abs(metric.current.pos) - 0x7fff;
 	if (endstopOvershoot > 0)
 	{
@@ -218,24 +214,24 @@ bool NormalizedAxis::updateTorque(int32_t* totalTorque) {
 
 	// Calculate total torque
 	int32_t torque = 0;
-	float maxEffectTorque = fabsf(combinedTorque);
-	float maxEndstop = fabsf(endstopTorque);
+	int32_t maxEffectTorque = abs(combinedTorque);
+	int32_t maxEndstop = abs(endstopTorque);
 	bool sameDir = (combinedTorque > 0 && endstopTorque > 0) || (combinedTorque < 0 && endstopTorque < 0);
 
 	if (maxEffectTorque > 0 && maxEndstop > 0)
 	{
 		if (sameDir)
 		{
-			torque = maxEffectTorque > maxEndstop ? combinedTorque : endstopTorque;
+			torque = (float)(maxEffectTorque > maxEndstop ? combinedTorque : endstopTorque);
 		}
 		else
 		{
-			torque = endstopTorque;
+			torque = (float)endstopTorque;
 		}
 	}
 	else
 	{
-		torque = combinedTorque + endstopTorque;
+		torque = (float)(combinedTorque + endstopTorque);
 	}
 	
 	torque = (invertAxis) ? -torque : torque;

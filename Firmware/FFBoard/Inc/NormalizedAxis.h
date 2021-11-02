@@ -113,7 +113,7 @@ private:
 	uint8_t damperIntensity = 0;
 	Biquad damperFilter = Biquad(BiquadType::lowpass, damper_f/filter_f, damper_q, 0.0f);
 
-	float endstop_f = 200.0f, endstop_q = 0.2f;
+	float endstop_f = 100.0f, endstop_q = 0.3f;
 	Biquad endstopFilter = Biquad(BiquadType::lowpass, endstop_f/filter_f, endstop_q, 0.0f);
 	float endstopScale = 0.0f;
 	float endstopDamperScale = 0.0f;
