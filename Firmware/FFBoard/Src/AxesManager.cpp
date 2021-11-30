@@ -43,7 +43,7 @@ void AxesManager::setEffectsCalculator(EffectsCalculator* calc) {
 }
 
 void AxesManager::restoreFlash() {
-	uint16_t val;
+	uint16_t val = 1;
 	bool res = (Flash_Read(ADR_AXIS_COUNT, &val));
 
 	if (!res || !this->validAxisRange(val)) {

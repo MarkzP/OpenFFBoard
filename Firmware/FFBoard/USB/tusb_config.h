@@ -36,7 +36,11 @@
 
 // defined by board.mk
 
+#ifdef STM32H743xx
+#define CFG_TUSB_MCU OPT_MCU_STM32H7 // target config
+#else
 #define CFG_TUSB_MCU OPT_MCU_STM32F4 // target config
+#endif
 #ifndef CFG_TUSB_MCU
   #error CFG_TUSB_MCU must be defined
 #endif

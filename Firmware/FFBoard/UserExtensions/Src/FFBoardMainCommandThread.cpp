@@ -121,7 +121,9 @@ ParseStatus FFBoardMainCommandThread::executeSysCommand(ParsedCommand* cmd,std::
 		NVIC_SystemReset();
 	}else if(cmd->cmd == "dfu"){ // Reboot into DFU bootloader mode
 		RebootDFU();
-	}else if(cmd->cmd == "vint"){
+	}
+#ifdef VSENSE
+	else if(cmd->cmd == "vint"){
 		if(cmd->type==CMDtype::get){
 			*reply+=std::to_string(getIntV());
 		}
@@ -131,7 +133,9 @@ ParseStatus FFBoardMainCommandThread::executeSysCommand(ParsedCommand* cmd,std::
 			*reply+=std::to_string(getExtV());
 		}
 
-	}else if(cmd->cmd == "swver"){
+	}
+#endif
+	else if(cmd->cmd == "swver"){
 		*reply += (SW_VERSION);
 
 	}else if(cmd->cmd == "minVerGui"){

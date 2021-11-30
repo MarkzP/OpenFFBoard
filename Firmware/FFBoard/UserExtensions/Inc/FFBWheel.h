@@ -103,8 +103,8 @@ private:
 	uint8_t reportSendCounter = 0;
 
 	const uint8_t analogAxisCount = 8;
-	uint16_t btnsources = 1; // Default ID0 = local buttons
-	uint16_t ainsources = 1;
+	uint16_t btnsources = 0; // Default ID0 = local buttons
+	uint16_t ainsources = 0;
 
 
 	ClassChooser<ButtonSource> btn_chooser;

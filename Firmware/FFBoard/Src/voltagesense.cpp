@@ -5,6 +5,9 @@
  *      Author: Yannick
  */
 
+#include "target_constants.h"
+#ifdef VSENSE
+
 #include "global_callbacks.h"
 #include "constants.h"
 #include "voltagesense.h"
@@ -54,3 +57,5 @@ void brakeCheck(){
 			//(ADC_BUF[ADC_CHAN_VINT] > ADC_BUF[ADC_CHAN_VEXT]+400 || (ADC_BUF[ADC_CHAN_VINT] > 3000));
 	HAL_GPIO_WritePin(DRV_BRAKE_GPIO_Port,DRV_BRAKE_Pin, braking_flag ? GPIO_PIN_SET:GPIO_PIN_RESET);
 }
+
+#endif

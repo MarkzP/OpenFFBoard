@@ -8,6 +8,9 @@
 #ifndef ADCHANDLER_H_
 #define ADCHANDLER_H_
 
+#include "target_constants.h"
+#ifdef ANALOGAXES
+
 #include "cppmain.h"
 #include "global_callbacks.h"
 
@@ -19,5 +22,7 @@ public:
 	virtual ~AdcHandler();
 	virtual void adcUpd(volatile uint32_t* ADC_BUF, uint8_t chans, ADC_HandleTypeDef* hadc);
 };
+
+#endif
 
 #endif /* ADCHANDLER_H_ */

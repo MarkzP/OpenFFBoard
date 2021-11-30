@@ -5,7 +5,7 @@
  *      Author: willson556
  */
 
-#include "stm32f4xx_hal.h"
+#include "target_constants.h"
 #ifndef OUTPUTPIN_H_
 #define OUTPUTPIN_H_
 /// For now this class only works with pre-configured output pins but it could be

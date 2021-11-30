@@ -49,7 +49,7 @@
 #define __EEPROM_H
 
 /* Includes ------------------------------------------------------------------*/
-#include "stm32f4xx_hal.h"
+
 #include "target_constants.h"
 //#include "eeprom_addresses.h"
 

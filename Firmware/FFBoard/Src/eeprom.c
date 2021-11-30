@@ -54,6 +54,15 @@
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 
+#ifdef STM32H743xx
+
+uint16_t EE_Init(void) { return HAL_OK; }
+uint16_t EE_ReadVariable(uint16_t VirtAddress, uint16_t* Data) { *Data = 0; return HAL_OK; }
+uint16_t EE_WriteVariable(uint16_t VirtAddress, uint16_t Data) { return HAL_OK;}
+HAL_StatusTypeDef EE_Format() { return HAL_OK; }
+
+#else
+
 /* Global variable used to store variable value in read sequence */
 uint16_t DataVar = 0;
 
@@ -735,3 +744,4 @@ static uint16_t EE_PageTransfer(uint16_t VirtAddress, uint16_t Data)
   */ 
 
 /******************* (C) COPYRIGHT 2017 STMicroelectronics *****END OF FILE****/
+#endif

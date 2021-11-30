@@ -92,7 +92,7 @@ std::vector<ParsedCommand> CmdParser::parse(){
 				bool validPqm = (pqm != std::string::npos && (std::isdigit(word[pqm+1]) || (std::isdigit(word[pqm+2]) && (word[pqm+1] == '-' || word[pqm+1] == '+' || word[pqm+1] == 'x'))));
 				bool validPeq = (peq != std::string::npos && (std::isdigit(word[peq+1]) || (std::isdigit(word[peq+2]) && (word[peq+1] == '-' || word[peq+1] == '+' || word[peq+1] == 'x'))));
 
-				if(validPqm && validPeq && pqm < peq && (abs(peq - pqm) > 1)){ // <cmd>?<int>=<int>
+				if(validPqm && validPeq && pqm < peq && (abs((int32_t)peq - (int32_t)pqm) > 1)){ // <cmd>?<int>=<int>
 					// Dual
 					int32_t val;
 					if(word[pqm+1] == 'x'){

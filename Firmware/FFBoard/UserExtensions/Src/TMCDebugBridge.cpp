@@ -147,7 +147,11 @@ void TMCDebugBridge::cdcRcv(char* Buf, uint32_t *Len){
 		}else if(cmd == 0x0F){ // Get input
 			std::vector<uint8_t> repl({2,1,64,0x0F,0,0,0,0});
 			if(addr == 5){  // Voltage
+#ifdef VSENSE
 				uint16_t v = getIntV()/100;
+#else
+				uint16_t v = 0;
+#endif
 				repl[7] = v & 0xff;
 				repl[6] = (v>>8) & 0xff;
 			}

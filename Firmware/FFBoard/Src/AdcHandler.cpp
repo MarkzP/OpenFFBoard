@@ -5,6 +5,9 @@
  *      Author: Yannick
  */
 
+#include "target_constants.h"
+#ifdef ANALOGAXES
+
 #include "AdcHandler.h"
 
 std::vector<AdcHandler*> AdcHandler::adcHandlers;
@@ -22,3 +25,5 @@ AdcHandler::~AdcHandler() {
 void AdcHandler::adcUpd(volatile uint32_t* ADC_BUF, uint8_t chans, ADC_HandleTypeDef* hadc){
 
 }
+
+#endif

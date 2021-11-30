@@ -8,7 +8,7 @@
 #include "tusb.h"
 #include "usb_descriptors.h"
 #include "usbd.h"
-#include "stm32f4xx_hal.h"
+#include "target_constants.h"
 #include "main.h"
 #include "usb_hid_ffb_desc.h"
 

@@ -54,11 +54,14 @@ extern ADC_HandleTypeDef hadc3;
 /**
  * Callback after an adc finished conversion
  */
+#if defined(ADC1_CHANNELS) || defined(ADC2_CHANNELS) || defined(ADC3_CHANNELS)
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
+#ifdef VSENSE
 	//Pulse braking mosfet if internal voltage is higher than supply.
 	if(hadc == &VSENSE_HADC)
 		brakeCheck();
-
+#endif
+#ifdef ANALOGAXES
 	uint8_t chans = 0;
 	volatile uint32_t* buf = getAnalogBuffer(hadc,&chans);
 	if(buf == NULL)
@@ -68,6 +71,8 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 		c->adcUpd(buf,chans,hadc);
 	}
 }
+#endif
+#endif
 
 __weak void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim){
 	HAL_TIM_PeriodElapsedCallback_CPP(htim);
@@ -309,7 +314,7 @@ void tud_resume_cb(){
 	mainclass->usbResume();
 }
 
-
+#if defined(ADC1_CHANNELS) || defined(ADC2_CHANNELS) || defined(ADC3_CHANNELS)
 volatile uint32_t* getAnalogBuffer(ADC_HandleTypeDef* hadc,uint8_t* chans){
 	#ifdef ADC1_CHANNELS
 	if(hadc == &hadc1){
@@ -333,6 +338,7 @@ volatile uint32_t* getAnalogBuffer(ADC_HandleTypeDef* hadc,uint8_t* chans){
 	#endif
 	return NULL;
 }
+#endif
 
 void startADC(){
 	#ifdef ADC1_CHANNELS

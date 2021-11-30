@@ -8,7 +8,11 @@
 #include "TMC4671.h"
 #include "ledEffects.h"
 #include "voltagesense.h"
+#ifdef STM32H743xx
+#include "stm32h7xx_hal_spi.h"
+#else
 #include "stm32f4xx_hal_spi.h"
+#endif
 #include <math.h>
 #include <assert.h>
 #include "RessourceManager.h"
@@ -178,8 +182,12 @@ void TMC4671::restoreFlash(){
 }
 
 bool TMC4671::hasPower(){
+#ifdef VSENSE
 	uint16_t intV = getIntV();
 	return (intV > 10000) && (getExtV() > 10000) && (intV < 78000);
+#else
+	return true;
+#endif
 }
 
 // Checks if important parameters are set to valid values

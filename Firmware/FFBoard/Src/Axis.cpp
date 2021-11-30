@@ -50,7 +50,7 @@ Axis::~Axis()
 void Axis::restoreFlash(){
 	NormalizedAxis::restoreFlash();
 	// read all constants
-	uint16_t confint;
+	uint16_t confint = 0;
 	if (Flash_Read(flashAddrs.config, &confint)){
 		this->conf = Axis::decodeConfFromInt(confint);
 	}else{

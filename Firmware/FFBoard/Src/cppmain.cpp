@@ -5,10 +5,16 @@
 #include "global_callbacks.h"
 #include "cpp_target_config.h"
 #include "cmsis_os.h"
+#ifdef STM32H743xx
+#include "stm32h7xx_hal_flash.h"
+#else
 #include "stm32f4xx_hal_flash.h"
+#endif
 #include "RessourceManager.h"
 
 #include "tusb.h"
+
+#include "FFBWheel.h"
 
 uint32_t clkmhz = HAL_RCC_GetHCLKFreq() / 100000;
 extern TIM_HandleTypeDef TIM_MICROS;
@@ -22,7 +28,7 @@ bool mainclassChosen = false;
 
 uint16_t main_id = 1;
 
-FFBoardMain* mainclass __attribute__((section (".ccmram")));
+FFBoardMain* mainclass;// __attribute__((section (".ccmram")));
 ClassChooser<FFBoardMain> mainchooser(class_registry);
 
 
@@ -35,10 +41,13 @@ RessourceManager ressourceManager = RessourceManager();
 void cppmain() {
 	// Flash init
 	HAL_FLASH_Unlock();
-	__HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_PGPERR | FLASH_FLAG_PGSERR);
+	__HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_PGSERR);
 	if( EE_Init() != EE_OK){
 		Error_Handler();
 	}
+
+	EE_Format();
+
 	HAL_FLASH_Lock();
 
 	TIM_MICROS.Instance->CR1 = 1; // Enable microsecond clock

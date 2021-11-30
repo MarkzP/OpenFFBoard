@@ -14,6 +14,7 @@
 
 // Hardware name string
 #define HW_TYPE "F407VE"
+#include "stm32f4xx_hal.h"
 #include "main.h"
 
 // Enabled features
