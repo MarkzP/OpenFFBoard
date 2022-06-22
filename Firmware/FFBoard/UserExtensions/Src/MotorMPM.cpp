@@ -8,6 +8,7 @@
 #include <MotorMPM.h>
 
 #define ADR_MPM_OFFSET	ADR_PWM_MODE
+#define CLSID_MOT_MPM		0xF1
 
 #define CPR	(1 << 16)
 
@@ -15,7 +16,7 @@ bool MotorMPM::mpmDriverInUse = false;
 
 
 ClassIdentifier MotorMPM::info =
-{ .name = "MPM", .id = CLSID_MOT_PWM, };
+{ .name = "MPM", .id = CLSID_MOT_MPM, };
 
 
 const ClassIdentifier MotorMPM::getInfo()
@@ -24,7 +25,7 @@ const ClassIdentifier MotorMPM::getInfo()
 }
 
 
-MotorMPM::MotorMPM() : CommandHandler("mpmdrv", CLSID_MOT_PWM)
+MotorMPM::MotorMPM() : CommandHandler("mpmdrv", CLSID_MOT_MPM)
 {
 	MotorMPM::mpmDriverInUse = true;
 
@@ -34,12 +35,6 @@ MotorMPM::MotorMPM() : CommandHandler("mpmdrv", CLSID_MOT_PWM)
 	rotation = 0;
 	offset = 25989;
 	aligned = false;
-	spiTxErrors = 0;
-	spiRxErrors = 0;
-	spiNbr = 0;
-	ssiNbr = 0;
-	extiNbr = 0;
-
 	torque = 0;
 	spi = &HSPIDRV;
 
@@ -51,7 +46,7 @@ MotorMPM::MotorMPM() : CommandHandler("mpmdrv", CLSID_MOT_PWM)
 	ready = true;
 
 	CommandHandler::registerCommands();
-	registerCommand("mpm", MotorMPM_commands::mpm, "MPM info", CMDFLAG_GET | CMDFLAG_INFOSTRING);
+	registerCommand("info", MotorMPM_commands::info, "MPM info", CMDFLAG_GET | CMDFLAG_INFOSTRING);
 }
 
 
@@ -81,8 +76,6 @@ void MotorMPM::turn(int16_t power)
 	torque = enabled ? power : 0;
 
 	HAL_GPIO_WritePin(SPI1_SS1_GPIO_Port, SPI1_SS1_Pin, GPIO_PIN_SET);
-
-	ssiNbr++;
 }
 
 
@@ -117,8 +110,6 @@ int32_t MotorMPM::getPos()
 		positionChanged = false;
 
 		HAL_GPIO_WritePin(SPI1_SS1_GPIO_Port, SPI1_SS1_Pin, GPIO_PIN_SET);
-
-		ssiNbr++;
 
 		if (aligned)
 		{
@@ -155,8 +146,6 @@ void MotorMPM::setPos(int32_t pos)
 	offset = pos - encoderAngle;
 
 	HAL_GPIO_WritePin(SPI1_SS1_GPIO_Port, SPI1_SS1_Pin, GPIO_PIN_SET);
-
-	ssiNbr++;
 }
 
 
@@ -172,14 +161,10 @@ void MotorMPM::exti(uint16_t GPIO_Pin)
 
 	if (!ready) return;
 
-	extiNbr++;
-
 	spiTx = __builtin_bswap16(torque);
 
 	if (HAL_SPI_TransmitReceive_DMA(spi, (uint8_t*)(&spiTx), (uint8_t*)(&spiRx), 2) != HAL_OK)
 	{
-		spiTxErrors++;
-
 		HAL_GPIO_WritePin(SPI1_SS1_GPIO_Port, SPI1_SS1_Pin, GPIO_PIN_RESET);
 	}
 }
@@ -188,8 +173,6 @@ void MotorMPM::exti(uint16_t GPIO_Pin)
 void MotorMPM::SpiTxRxCplt(SPI_HandleTypeDef *hspi)
 {
 	if (hspi != spi) return;
-
-	spiNbr++;
 
 	rawPosition = __builtin_bswap16(spiRx);
 
@@ -204,7 +187,6 @@ void MotorMPM::SpiError(SPI_HandleTypeDef *hspi)
 	if (hspi == spi)
 	{
 		HAL_SPI_Abort_IT(spi);
-		spiRxErrors++;
 
 		HAL_GPIO_WritePin(SPI1_SS1_GPIO_Port, SPI1_SS1_Pin, GPIO_PIN_RESET);
 	}
@@ -215,7 +197,7 @@ CommandStatus MotorMPM::command(const ParsedCommand& cmd,std::vector<CommandRepl
 {
 	CommandStatus result = CommandStatus::OK;
 
-	if (cmd.cmdId == (uint32_t)MotorMPM_commands::mpm)
+	if (cmd.cmdId == (uint32_t)MotorMPM_commands::info)
 	{
 		if (cmd.type == CMDtype::get)
 		{
@@ -229,18 +211,7 @@ CommandStatus MotorMPM::command(const ParsedCommand& cmd,std::vector<CommandRepl
 					+ " = " + std::to_string(position)
 					+ "; Torque=" + std::to_string(torque)
 					+ "; Raw=" + std::to_string(rawPosition)
-					+ "; Exti=" + std::to_string(extiNbr)
-					+ "; Ssi=" + std::to_string(ssiNbr)
-					+ "; Spi=" + std::to_string(spiNbr)
-					+ "; RxErr=" + std::to_string(spiRxErrors)
-					+ "; TxErr=" + std::to_string(spiTxErrors)
 			);
-
-//			extiNbr = 0;
-//			ssiNbr = 0;
-//			spiNbr = 0;
-//			spiTxErrors = 0;
-//			spiRxErrors = 0;
 		}
 	}
 	else
@@ -266,9 +237,6 @@ void MotorMPM::restoreFlash()
 	{
 		offset = (int16_t)u_offset;
 	}
-	else
-	{
-		spiTxErrors = 666;
-	}
+
 	aligned = false;
 }

@@ -10,7 +10,6 @@
 
 #include <MotorDriver.h>
 #include <ExtiHandler.h>
-#include "SPI.h"
 #include <SpiHandler.h>
 #include <PersistentStorage.h>
 #include <Encoder.h>
@@ -24,7 +23,7 @@ class MotorMPM: public MotorDriver,
 		public Encoder,
 		public CommandHandler {
 	enum class MotorMPM_commands : uint32_t {
-		mpm,
+		info,
 	};
 public:
 	MotorMPM();
@@ -72,11 +71,6 @@ private:
 	bool ready = false;
 	bool aligned = false;
 	bool positionChanged = false;
-	uint32_t spiTxErrors;
-	uint32_t spiRxErrors;
-	uint32_t spiNbr;
-	uint32_t ssiNbr;
-	uint32_t extiNbr;
 
 	SPI_HandleTypeDef *spi;
 
