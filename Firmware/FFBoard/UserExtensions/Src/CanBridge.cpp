@@ -16,9 +16,8 @@ extern TIM_TypeDef TIM_MICROS;
 
 ClassIdentifier CanBridge::info = {
 		 .name = "CAN Bridge (GVRET)" ,
-		 .id=12,
-		 .unique = '0',
-		 .hidden=false //Set false to list
+		 .id=CLSID_MAIN_CAN,
+		 .visibility = ClassVisibility::visible //Set false to list
  };
 
 const ClassIdentifier CanBridge::getInfo(){
@@ -49,12 +48,20 @@ CanBridge::CanBridge() {
 	txHeader.TransmitGlobalTime = DISABLE;
 
 	this->filterId = this->port->addCanFilter(sFilterConfig);
-	// Interrupt start
 	conf1.enabled = true;
+
+	//CommandHandler::registerCommands();
+	registerCommand("can", CanBridge_commands::can, "Send a frame or get last received frame");
+	registerCommand("rtr", CanBridge_commands::canrtr, "Send a RTR frame");
+	registerCommand("spd", CanBridge_commands::canspd, "Change or get CAN baud");
+
+	this->port->setSilentMode(false);
+	this->port->takePort();
 }
 
 CanBridge::~CanBridge() {
 	this->port->removeCanFilter(filterId);
+	this->port->freePort();
 }
 
 
@@ -69,24 +76,11 @@ void CanBridge::sendMessage(uint32_t id, uint64_t msg,uint8_t len = 8,bool rtr =
 	memcpy(txBuf,&msg,8);
 	txHeader.StdId = id;
 	txHeader.DLC = len;
-	txHeader.RTR = rtr ? CAN_RTR_DATA : CAN_RTR_REMOTE;
+	txHeader.RTR = rtr ? CAN_RTR_REMOTE : CAN_RTR_DATA;
 	if(!this->port->sendMessage(&txHeader, txBuf, &this->txMailbox)){
 		pulseErrLed();
 	}
 }
-
-/**
- * Returns last received can message as string
- */
-std::string CanBridge::messageToString(CAN_rx_msg msg){
-	std::string buf;
-	buf = "CAN:";
-	buf += std::to_string(msg.header.StdId);
-	buf += ":";
-	buf += std::to_string(*(int32_t*)msg.data);
-	return buf;
-}
-
 
 // Can only send and receive 32bit for now
 void CanBridge::canRxPendCallback(CAN_HandleTypeDef *hcan,uint8_t* rxBuf,CAN_RxHeaderTypeDef* rxHeader,uint32_t fifo){
@@ -101,7 +95,14 @@ void CanBridge::canRxPendCallback(CAN_HandleTypeDef *hcan,uint8_t* rxBuf,CAN_RxH
 	}
 }
 
-
+std::string CanBridge::messageToString(CAN_rx_msg msg){
+	std::string buf;
+	buf = "CAN:";
+	buf += std::to_string(msg.header.StdId);
+	buf += ":";
+	buf += std::to_string(*(int64_t*)msg.data);
+	return buf;
+}
 
 void CanBridge::update(){
 	if(replyPending){
@@ -296,40 +297,43 @@ void CanBridge::cdcRcv(char* Buf, uint32_t *Len){
 
 
 
-ParseStatus CanBridge::command(ParsedCommand* cmd,std::string* reply){
-	ParseStatus flag = ParseStatus::OK; // Valid command found
+CommandStatus CanBridge::command(const ParsedCommand& cmd,std::vector<CommandReply>& replies){
 
-	// ------------ commands ----------------
-	if(cmd->cmd == "can"){ //
-		if(cmd->type == CMDtype::get){
-			*reply+= messageToString(lastmsg);
-		}else if(cmd->type == CMDtype::setat){
-			sendMessage(cmd->adr,cmd->val);
+	switch(static_cast<CanBridge_commands>(cmd.cmdId)){
+	case CanBridge_commands::can:
+		if(cmd.type == CMDtype::get){
+			replies.emplace_back(*(int64_t*)lastmsg.data,lastmsg.header.StdId);
+		}else if(cmd.type == CMDtype::setat){
+			sendMessage(cmd.adr,cmd.val);
 		}else{
-			flag = ParseStatus::ERR;
+			return CommandStatus::ERR;
 		}
+		break;
 
-	}
-	else if(cmd->cmd == "canrtr"){ //
-		if(cmd->type == CMDtype::get){
-			*reply+= messageToString(lastmsg);
-		}else if(cmd->type == CMDtype::setat){
-			sendMessage(cmd->adr,cmd->val,8,true); // msg with rtr bit
+
+	case CanBridge_commands::canrtr:
+		if(cmd.type == CMDtype::get){
+			replies.emplace_back(*(int64_t*)lastmsg.data,lastmsg.header.StdId);
+		}else if(cmd.type == CMDtype::setat){
+			sendMessage(cmd.adr,cmd.val,8,true); // msg with rtr bit
 		}else{
-			flag = ParseStatus::ERR;
+			return CommandStatus::ERR;
 		}
+		break;
 
-	}
-	else if(cmd->cmd == "canspd"){
-		if(cmd->type == CMDtype::get){
-			*reply += std::to_string(this->port->getSpeed());
-		}else if(cmd->type == CMDtype::set){
-			this->port->setSpeed(cmd->val);
+	case CanBridge_commands::canspd:
+		if(cmd.type == CMDtype::get){
+			replies.emplace_back(this->port->getSpeed());
+		}else if(cmd.type == CMDtype::set){
+			this->port->setSpeed(cmd.val);
 		}
-	}else{
-		flag = ParseStatus::NOT_FOUND; // No valid command
+		break;
+
+	default:
+		return CommandStatus::NOT_FOUND;
 	}
-	return flag;
+
+	return CommandStatus::OK; // Valid command found
 }
 
 #endif

@@ -54,6 +54,16 @@ enum class VescEncoderMode : uint8_t {
 	ENCODER_OFF = 0, ENCODER_ON = 3
 };
 
+enum class VescCAN_commands : uint32_t {
+	offbcanid,vesccanid,canspd,errorflags,vescstate,voltage,encrate,pos,torque,forcePosRead,useEncoder,offset
+};
+
+struct VescFlashAddrs{
+	uint16_t canId = 	ADR_VESC1_CANID;
+	uint16_t data = 	ADR_VESC1_DATA;
+	uint16_t offset = 	ADR_VESC1_OFFSET;
+};
+
 class VescCAN: public MotorDriver,
 		public PersistentStorage,
 		public Encoder,
@@ -61,12 +71,9 @@ class VescCAN: public MotorDriver,
 		public CommandHandler,
 		cpp_freertos::Thread {
 public:
-	VescCAN();
+	VescCAN(uint8_t address);
 	virtual ~VescCAN();
-
-	static ClassIdentifier info;
-	const ClassIdentifier getInfo();
-	static bool isCreatable();
+	void setAddress(uint8_t address);
 
 	// MotorDriver impl
 	void turn(int16_t power) override;
@@ -92,13 +99,10 @@ public:
 			CAN_RxHeaderTypeDef *rxHeader, uint32_t fifo) override;
 
 	// CommandHandler impl
-	ParseStatus command(ParsedCommand *cmd, std::string *reply) override;
+	CommandStatus command(const ParsedCommand& cmd,std::vector<CommandReply>& replies);
+	void registerCommands(); // Function reserved to register commands in the command list.
 	virtual std::string getHelpstring() {
-		return "Vesc: "
-				"vescCanId, vescCanSpd (3=250k,4=500k,5=1M), "
-				"vescState, vescErrorFlag, "
-				"vescEncRate, vescUseEncoder, vescPos, vescTorque, "
-				"vescOffset, vescVoltage\n";
+		return "VESC CAN interface";
 	};
 
 	// Thread impl
@@ -107,8 +111,7 @@ public:
 private:
 
 	// Vesc interface and motor state
-
-	static bool vescInUse;
+	VescFlashAddrs flashAddrs;
 	volatile VescState state = VescState::VESC_STATE_UNKNOWN;
 	volatile uint8_t vescErrorFlag;
 	bool activeMotor = false;
@@ -133,12 +136,12 @@ private:
 
 	CANPort *port = &canport;
 	int32_t filterId = 0;
-	uint8_t baudrate = CANSPEEDPRESET_500; 	// 250000, 500000, 1M
-	int8_t nodeId = 0x40; 					// Default OpenFFBoard CAN ID
-	const uint8_t VESC_CAN_ID = 0xFF;		// Default VESC CAN id
+	//uint8_t baudrate = CANSPEEDPRESET_500; 	// 250000, 500000, 1M
+	uint8_t OFFB_can_Id = 0x40; 			// Default OpenFFBoard CAN ID
+	uint8_t VESC_can_Id = 0xFF;				// Default VESC CAN id
 	uint8_t buffer_rx[BUFFER_RX_SIZE];		// Used to store multi-frame can message
 
-	void setCanRate(uint8_t canRate);
+	//void setCanRate(uint8_t canRate);
 	void getFirmwareInfo();
 	bool isFirmwareCompatible();
 	void sendPing();
@@ -191,5 +194,31 @@ private:
 
 };
 
+// *** Creation of the first concrete class (VESC_1) used by OpenFFBoard of VescCan interface ***
+class VESC_1 : public VescCAN {
+public:
+	VESC_1() : VescCAN{0} { inUse = true; }
+	~VESC_1() { inUse = false; }
+
+	static ClassIdentifier info;
+	static bool inUse;
+
+	static bool isCreatable();
+	const ClassIdentifier getInfo();
+};
+
+// *** Creation of the second concrete class (VESC_2) used by OpenFFBoard of VescCan interface ***
+/*class VESC_2 : public VescCAN {
+public:
+	VESC_2() : VescCAN{1} { inUse = true; }
+	~VESC_2() { inUse = false; }
+
+	static ClassIdentifier info;
+	static bool inUse;
+
+	static bool isCreatable();
+	const ClassIdentifier getInfo();
+};
+*/
 #endif /*             VESC               */
 #endif /*  USEREXTENSIONS_SRC_VESCCAN_H_ */

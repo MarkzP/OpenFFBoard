@@ -8,6 +8,8 @@
 #include <MotorPWM.h>
 #ifdef PWMDRIVER
 
+#include "cpp_target_config.h"
+
 /*
  * Mapping of names for ModePWM_DRV
  */
@@ -19,8 +21,7 @@ bool MotorPWM::pwmDriverInUse = false;
 
 ClassIdentifier MotorPWM::info = {
 		 .name = "PWM" ,
-		 .id=4,
-		 .unique = '0'
+		 .id=CLSID_MOT_PWM,
  };
 const ClassIdentifier MotorPWM::getInfo(){
 	return info;
@@ -29,6 +30,30 @@ const ClassIdentifier MotorPWM::getInfo(){
 bool MotorPWM::isCreatable(){
 	return !MotorPWM::pwmDriverInUse; // Creatable if not already in use for example by another axis
 }
+
+
+MotorPWM::MotorPWM() : CommandHandler("pwmdrv",CLSID_MOT_PWM), timerConfig(pwmTimerConfig) {
+
+	MotorPWM::pwmDriverInUse = true;
+	restoreFlash();
+	//HAL_TIM_Base_Start_IT(timer);
+	setPwmSpeed(pwmspeed);
+
+	CommandHandler::registerCommands();
+	registerCommand("freq", MotorPWM_commands::freq, "PWM period selection",CMDFLAG_GET | CMDFLAG_SET | CMDFLAG_INFOSTRING);
+	registerCommand("mode", MotorPWM_commands::mode, "PWM mode",CMDFLAG_GET | CMDFLAG_SET | CMDFLAG_INFOSTRING);
+}
+
+MotorPWM::~MotorPWM() {
+	MotorPWM::pwmDriverInUse = false;
+	HAL_TIM_PWM_Stop(timerConfig.timer, timerConfig.channel_1);
+	HAL_TIM_PWM_Stop(timerConfig.timer, timerConfig.channel_2);
+	HAL_TIM_PWM_Stop(timerConfig.timer, timerConfig.channel_3);
+	HAL_TIM_PWM_Stop(timerConfig.timer, timerConfig.channel_4);
+	HAL_TIM_Base_Stop_IT(timerConfig.timer);
+}
+
+
 
 void MotorPWM::turn(int16_t power){
 	if(!active)
@@ -43,7 +68,7 @@ void MotorPWM::turn(int16_t power){
 
 		float val = ((pval * 1000)/0x7fff)*tFreq;
 		val = clip((1500*tFreq)-val,1000*tFreq, 2000*tFreq);
-		setPWM(val,ccr_1);
+		setPWM(val,timerConfig.ccr_1);
 
 	/*
 	 * Generates a 0-100% PWM signal
@@ -52,28 +77,28 @@ void MotorPWM::turn(int16_t power){
 	 */
 	}else if(mode == ModePWM_DRV::PWM_DIR){
 		if(power < 0){
-			setPWM(0,ccr_3);
-			setPWM(0xffff,ccr_4);
+			setPWM(0,timerConfig.ccr_3);
+			setPWM(0xffff,timerConfig.ccr_4);
 		}else{
-			setPWM(0,ccr_4);
-			setPWM(0xffff,ccr_3);
+			setPWM(0,timerConfig.ccr_4);
+			setPWM(0xffff,timerConfig.ccr_3);
 		}
 		int32_t val = (uint32_t)((abs(power) * period)/0x7fff);
-		setPWM(val,ccr_1);
+		setPWM(val,timerConfig.ccr_1);
 
 	}else if(mode == ModePWM_DRV::CENTERED_PWM){
 		int32_t pval = 0x7fff+power;
 		int32_t val = (pval * period)/0xffff;
-		setPWM(val,ccr_1);
+		setPWM(val,timerConfig.ccr_1);
 
 	}else if(mode == ModePWM_DRV::PWM_DUAL){
 		int32_t val = (uint32_t)((abs(power) * period)/0x7fff);
 		if(power < 0){
-			setPWM(0,ccr_1);
-			setPWM(val,ccr_2);
+			setPWM(0,timerConfig.ccr_1);
+			setPWM(val,timerConfig.ccr_2);
 		}else{
-			setPWM(0,ccr_2);
-			setPWM(val,ccr_1);
+			setPWM(0,timerConfig.ccr_2);
+			setPWM(val,timerConfig.ccr_1);
 		}
 	}
 }
@@ -88,9 +113,9 @@ void MotorPWM::setPwmSpeed(SpeedPWM_DRV spd){
 	case SpeedPWM_DRV::LOW:
 		if(mode == ModePWM_DRV::RC_PWM){
 			period =  40000;  //20ms (40000/Sysclock)
-			prescaler = TIM_PWM_FREQ/2000000;
+			prescaler = timerConfig.timerFreq/2000000;
 		}else{
-			period = TIM_PWM_FREQ/3000; // Check if timer can count high enough for very high clock speeds!
+			period = timerConfig.timerFreq/3000; // Check if timer can count high enough for very high clock speeds!
 			prescaler = 0;
 		}
 
@@ -98,9 +123,9 @@ void MotorPWM::setPwmSpeed(SpeedPWM_DRV spd){
 	case SpeedPWM_DRV::MID:
 		if(mode == ModePWM_DRV::RC_PWM){
 			period = 30000;//15ms(30000/47)
-			prescaler = TIM_PWM_FREQ/2000000;
+			prescaler = timerConfig.timerFreq/2000000;
 		}else{
-			period = TIM_PWM_FREQ/9000;
+			period = timerConfig.timerFreq/9000;
 			prescaler = 0;
 		}
 
@@ -108,18 +133,18 @@ void MotorPWM::setPwmSpeed(SpeedPWM_DRV spd){
 	case SpeedPWM_DRV::HIGH:
 		if(mode == ModePWM_DRV::RC_PWM){
 			period = 20000; //10ms (20000/47)
-			prescaler = TIM_PWM_FREQ/2000000;
+			prescaler = timerConfig.timerFreq/2000000;
 		}else{
-			period = TIM_PWM_FREQ/17000;
+			period = timerConfig.timerFreq/17000;
 			prescaler = 0;
 		}
 	break;
 	case SpeedPWM_DRV::VERYHIGH:
 		if(mode == ModePWM_DRV::RC_PWM){
 			period = 10000; //5ms (20000/23)
-			prescaler = TIM_PWM_FREQ/2000000;
+			prescaler = timerConfig.timerFreq/2000000;
 		}else{
-			period = TIM_PWM_FREQ/24000;
+			period = timerConfig.timerFreq/24000;
 			prescaler = 0;
 		}
 	break;
@@ -129,13 +154,13 @@ void MotorPWM::setPwmSpeed(SpeedPWM_DRV spd){
 
 	if(ok){
 		this->pwmspeed = spd;
-		tFreq = (float)(TIM_PWM_FREQ/1000000)/(float)(prescaler+1);
+		tFreq = (float)(timerConfig.timerFreq/1000000)/(float)(prescaler+1);
 
-		pwmInitTimer(timer, channel_1,period,prescaler);
-		pwmInitTimer(timer, channel_2,period,prescaler);
-		pwmInitTimer(timer, channel_3,period,prescaler);
-		pwmInitTimer(timer, channel_4,period,prescaler);
-		HAL_TIM_MspPostInit(timer);
+		pwmInitTimer(timerConfig.timer, timerConfig.channel_1,period,prescaler);
+		pwmInitTimer(timerConfig.timer, timerConfig.channel_2,period,prescaler);
+		pwmInitTimer(timerConfig.timer, timerConfig.channel_3,period,prescaler);
+		pwmInitTimer(timerConfig.timer, timerConfig.channel_4,period,prescaler);
+		HAL_TIM_MspPostInit(timerConfig.timer);
 //		setPWM_HAL(0, timer, channel_1, period);
 //		pwmInitTimer(timer, channel_2,period,prescaler);
 //		setPWM_HAL(0, timer, channel_2, period);
@@ -148,13 +173,13 @@ void MotorPWM::setPwmSpeed(SpeedPWM_DRV spd){
  */
 void MotorPWM::setPWM(uint32_t value,uint8_t ccr){
 	if(ccr == 1){
-		timer->Instance->CCR1 = value; // Set next CCR for channel 1
+		timerConfig.timer->Instance->CCR1 = value; // Set next CCR for channel 1
 	}else if(ccr == 2){
-		timer->Instance->CCR2 = value; // Set next CCR for channel 2
+		timerConfig.timer->Instance->CCR2 = value; // Set next CCR for channel 2
 	}else if(ccr == 3){
-		timer->Instance->CCR3 = value; // Set next CCR for channel 3
+		timerConfig.timer->Instance->CCR3 = value; // Set next CCR for channel 3
 	}else if(ccr == 4){
-		timer->Instance->CCR4 = value; // Set next CCR for channel 4
+		timerConfig.timer->Instance->CCR4 = value; // Set next CCR for channel 4
 	}
 
 }
@@ -164,12 +189,7 @@ SpeedPWM_DRV MotorPWM::getPwmSpeed(){
 }
 
 
-MotorPWM::MotorPWM() {
-	MotorPWM::pwmDriverInUse = true;
-	restoreFlash();
-	//HAL_TIM_Base_Start_IT(timer);
-	setPwmSpeed(pwmspeed);
-}
+
 
 void MotorPWM::saveFlash(){
 	// 0-3: mode
@@ -187,16 +207,6 @@ void MotorPWM::restoreFlash(){
 		uint8_t s = (var >> 4) & 0x7;
 		this->setPwmSpeed(SpeedPWM_DRV(s));
 	}
-}
-
-
-MotorPWM::~MotorPWM() {
-	MotorPWM::pwmDriverInUse = false;
-	HAL_TIM_PWM_Stop(timer, channel_1);
-	HAL_TIM_PWM_Stop(timer, channel_2);
-	HAL_TIM_PWM_Stop(timer, channel_3);
-	HAL_TIM_PWM_Stop(timer, channel_4);
-	HAL_TIM_Base_Stop_IT(timer);
 }
 
 
@@ -222,25 +232,17 @@ ModePWM_DRV MotorPWM::getMode(){
 
 
 
-ParseStatus MotorPWM::command(ParsedCommand* cmd,std::string* reply){
-	ParseStatus result = ParseStatus::OK;
+CommandStatus MotorPWM::command(const ParsedCommand& cmd,std::vector<CommandReply>& replies){
 
-	if(cmd->cmd == "pwm_mode"){
-		if(cmd->type == CMDtype::set){
-			this->setMode((ModePWM_DRV)cmd->val);
-		}else if(cmd->type == CMDtype::get){
-			*reply += std::to_string((uint8_t)this->getMode());
-		}else{
-			for(uint8_t i = 0; i<PwmModeNames.size();i++){
-				*reply+=  PwmModeNames[i]  + ":" + std::to_string(i)+"\n";
-			}
-		}
-	}else if(cmd->cmd == "pwm_speed"){
-		if(cmd->type == CMDtype::set){
-			this->setPwmSpeed((SpeedPWM_DRV)cmd->val);
-		}else if(cmd->type == CMDtype::get){
-			*reply += std::to_string((uint8_t)this->getPwmSpeed());
-		}else{
+	switch(static_cast<MotorPWM_commands>(cmd.cmdId)){
+
+	case MotorPWM_commands::freq:
+	{
+		if(cmd.type == CMDtype::set){
+			this->setPwmSpeed((SpeedPWM_DRV)cmd.val);
+		}else if(cmd.type == CMDtype::get){
+			replies.emplace_back((uint8_t)this->getPwmSpeed());
+		}else if(cmd.type == CMDtype::info){
 			std::vector<std::string> names = PWM_SpeedNames;
 			if(this->mode == ModePWM_DRV::RC_PWM){
 				names = RC_SpeedNames;
@@ -248,14 +250,30 @@ ParseStatus MotorPWM::command(ParsedCommand* cmd,std::string* reply){
 				names = PWM_SpeedNames;
 			}
 			for(uint8_t i = 0; i<names.size();i++){
-				*reply+=  names[i]  + ":" + std::to_string(i)+"\n";
+				replies.emplace_back(names[i]  + ":" + std::to_string(i)+"\n");
 			}
 		}
-	}else{
-		result = ParseStatus::NOT_FOUND; // No valid command
+		break;
+	}
+	case MotorPWM_commands::mode:
+	{
+		if(cmd.type == CMDtype::set){
+			this->setMode((ModePWM_DRV)cmd.val);
+		}else if(cmd.type == CMDtype::get){
+			replies.emplace_back((uint8_t)this->getMode());
+		}else if(cmd.type == CMDtype::info){
+			for(uint8_t i = 0; i<PwmModeNames.size();i++){
+				replies.emplace_back(PwmModeNames[i]  + ":" + std::to_string(i)+"\n");
+			}
+		}
+		break;
+	}
+	default:
+		return CommandStatus::NOT_FOUND;
 	}
 
-	return result;
+	return CommandStatus::OK;
+
 }
 
 
@@ -282,7 +300,7 @@ void pwmInitTimer(TIM_HandleTypeDef* timer,uint32_t channel,uint32_t period,uint
 }
 
 
-/*
+/**
  * Changes the pwm value of the timer via HAL
  */
 void setPWM_HAL(uint32_t value,TIM_HandleTypeDef* timer,uint32_t channel,uint32_t period){

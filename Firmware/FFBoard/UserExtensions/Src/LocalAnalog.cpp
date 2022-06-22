@@ -11,13 +11,18 @@
 
 ClassIdentifier LocalAnalog::info = {
 	 .name = "AIN-Pins" ,
-	 .id=0,
-	 .unique = '0'
+	 .id=CLSID_ANALOG_LOCAL, //0
 };
 
 
-LocalAnalog::LocalAnalog() {
+LocalAnalog::LocalAnalog() : CommandHandler("apin",CLSID_ANALOG_LOCAL,0) {
 	this->restoreFlash();
+
+	CommandHandler::registerCommands();
+	registerCommand("mask", LocalAnaloc_commands::pinmask, "Enabled pins",CMDFLAG_GET|CMDFLAG_SET);
+	registerCommand("autocal", LocalAnaloc_commands::autocal, "Autoranging",CMDFLAG_GET|CMDFLAG_SET);
+	registerCommand("pins", LocalAnaloc_commands::pins, "Available pins",CMDFLAG_GET|CMDFLAG_SET);
+	registerCommand("values", LocalAnaloc_commands::values, "Analog values",CMDFLAG_GET);
 }
 
 LocalAnalog::~LocalAnalog() {
@@ -79,34 +84,45 @@ std::vector<int32_t>* LocalAnalog::getAxes(){
 	return &this->buf;
 }
 
-ParseStatus LocalAnalog::command(ParsedCommand* cmd,std::string* reply){
-	ParseStatus flag = ParseStatus::OK;
-	if(cmd->cmd == "local_ain_mask"){
-		if(cmd->type == CMDtype::get){
-			*reply+=std::to_string(aconf.analogmask);
-		}else if(cmd->type == CMDtype::set){
-			aconf.analogmask = cmd->val;
-		}else{
-			flag = ParseStatus::ERR;
+CommandStatus LocalAnalog::command(const ParsedCommand& cmd,std::vector<CommandReply>& replies){
+
+	switch(static_cast<LocalAnaloc_commands>(cmd.cmdId)){
+		case LocalAnaloc_commands::pinmask:
+			return handleGetSet(cmd, replies, this->aconf.analogmask);
+		break;
+
+		case LocalAnaloc_commands::autocal:
+			if(cmd.type == CMDtype::get){
+				replies.emplace_back(aconf.autorange);
+			}else if(cmd.type == CMDtype::set){
+				setAutorange(cmd.val != 0);
+			}
+			break;
+		case LocalAnaloc_commands::pins:
+			if(cmd.type == CMDtype::get){
+				replies.emplace_back(numPins);
+			}else{
+				return CommandStatus::ERR;
+			}
+			break;
+		case LocalAnaloc_commands::values:
+			if(cmd.type == CMDtype::get){
+				std::vector<int32_t>* axes = getAxes();
+
+				for(int32_t val : *axes){
+					replies.emplace_back(val);
+				}
+
+			}else{
+				return CommandStatus::ERR;
+			}
+			break;
+
+		default:
+			return CommandStatus::NOT_FOUND;
 		}
-	}else if(cmd->cmd == "local_ain_acal"){
-		if(cmd->type == CMDtype::get){
-			*reply+=std::to_string(aconf.autorange);
-		}else if(cmd->type == CMDtype::set){
-			setAutorange(cmd->val != 0);
-		}else{
-			flag = ParseStatus::ERR;
-		}
-	}else if(cmd->cmd == "local_ain_num"){
-		if(cmd->type == CMDtype::get){
-			*reply+=std::to_string(numPins); // Max num inputs
-		}else{
-			flag = ParseStatus::ERR;
-		}
-	}else{
-		flag = ParseStatus::NOT_FOUND;
-	}
-	return flag;
+
+		return CommandStatus::OK;
 }
 
 

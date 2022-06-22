@@ -14,19 +14,35 @@
 
 ClassIdentifier ShifterAnalog::info = {
 		 .name = "Shifter Analog" ,
-		 .id=3,
-		 .unique = '0'
+		 .id=CLSID_BTN_SHIFTER, // 3
  };
 const ClassIdentifier ShifterAnalog::getInfo(){
 	return info;
 }
 
-ShifterAnalog::ShifterAnalog() {
+ShifterAnalog::ShifterAnalog() : CommandHandler("shifter", CLSID_BTN_SHIFTER) {
 	this->restoreFlash();
+	this->registerCommands();
 }
 
 ShifterAnalog::~ShifterAnalog() {
 
+}
+
+void ShifterAnalog::registerCommands(){
+	CommandHandler::registerCommands();
+
+	registerCommand("mode", ShifterAnalog_commands::mode, "Shifter mode",CMDFLAG_GET|CMDFLAG_SET|CMDFLAG_INFOSTRING);
+	registerCommand("x12", ShifterAnalog_commands::x12, "X-threshold for 1,2 gears",CMDFLAG_GET|CMDFLAG_SET);
+	registerCommand("x56", ShifterAnalog_commands::x56, "X-threshold for 5,6 gears",CMDFLAG_GET|CMDFLAG_SET);
+	registerCommand("y135", ShifterAnalog_commands::y135, "Y-threshold for 1,3,5 gears",CMDFLAG_GET|CMDFLAG_SET);
+	registerCommand("y246", ShifterAnalog_commands::y246, "Y-threshold for 2,4,6 gears",CMDFLAG_GET|CMDFLAG_SET);
+	registerCommand("revbtn", ShifterAnalog_commands::revbtn, "Pin for R signal",CMDFLAG_GET|CMDFLAG_SET);
+	registerCommand("cspin", ShifterAnalog_commands::cspin, "CS pin for SPI modes",CMDFLAG_GET|CMDFLAG_SET);
+	registerCommand("xchan", ShifterAnalog_commands::xchan, "X signal analog pin",CMDFLAG_GET|CMDFLAG_SET);
+	registerCommand("ychan", ShifterAnalog_commands::ychan, "Y signal analog pin",CMDFLAG_GET|CMDFLAG_SET);
+	registerCommand("vals", ShifterAnalog_commands::vals, "Analog values",CMDFLAG_GET);
+	registerCommand("gear", ShifterAnalog_commands::gear, "Decoded gear",CMDFLAG_GET);
 }
 
 void ShifterAnalog::updateAdc(){
@@ -146,21 +162,23 @@ void ShifterAnalog::saveFlash(){
 }
 
 void ShifterAnalog::restoreFlash(){
-	std::tie(x_chan, y_chan) = unpack(Flash_Read(ADR_SHIFTERANALOG_CONF_2, pack(x_chan, y_chan)));
-	std::tie(reverseButtonNum, cs_pin_num) = unpack(Flash_Read(ADR_SHIFTERANALOG_CONF_3, pack(reverseButtonNum, cs_pin_num)));
+	std::tie(x_chan, y_chan) = unpack(Flash_ReadDefault(ADR_SHIFTERANALOG_CONF_2, pack(x_chan, y_chan)));
+	std::tie(reverseButtonNum, cs_pin_num) = unpack(Flash_ReadDefault(ADR_SHIFTERANALOG_CONF_3, pack(reverseButtonNum, cs_pin_num)));
 
-	setMode(Flash_Read(ADR_SHIFTERANALOG_CONF, ShifterMode::G29_H));
+	setMode(Flash_ReadDefault(ADR_SHIFTERANALOG_CONF, ShifterMode::G29_H));
 
-	X_12 = Flash_Read(ADR_SHIFTERANALOG_X_12, X_12);
-	X_56 = Flash_Read(ADR_SHIFTERANALOG_X_56, X_56);
-	Y_135 = Flash_Read(ADR_SHIFTERANALOG_Y_135, Y_135);
-	Y_246 = Flash_Read(ADR_SHIFTERANALOG_Y_246, Y_246);
+	X_12 = Flash_ReadDefault(ADR_SHIFTERANALOG_X_12, X_12);
+	X_56 = Flash_ReadDefault(ADR_SHIFTERANALOG_X_56, X_56);
+	Y_135 = Flash_ReadDefault(ADR_SHIFTERANALOG_Y_135, Y_135);
+	Y_246 = Flash_ReadDefault(ADR_SHIFTERANALOG_Y_246, Y_246);
 }
 
-void ShifterAnalog::printModes(std::string* reply){
+std::string ShifterAnalog::printModes(){
+	std::string reply;
 	for(uint8_t i = 0; i<mode_names.size();i++){
-		*reply+=  mode_names[i] + ":" + std::to_string(i) + "," + std::to_string(mode_uses_spi[i]) + "," + std::to_string(mode_uses_local_reverse[i]) + "\n";
+		reply+=  mode_names[i] + ":" + std::to_string(i) + "," + std::to_string(mode_uses_spi[i]) + "," + std::to_string(mode_uses_local_reverse[i]) + "\n";
 	}
+	return reply;
 }
 
 bool ShifterAnalog::isG27Mode(ShifterMode m) {
@@ -193,41 +211,55 @@ void ShifterAnalog::setCSPin(uint8_t new_cs_pin_num) {
 
 
 
-ParseStatus ShifterAnalog::command(ParsedCommand* cmd,std::string* reply){
-	ParseStatus result = ParseStatus::OK;
-	// use "shifter_mode!" to print a list of possible modes and choose one
-	if(cmd->cmd == "shifter_mode"){
-		if(cmd->type == CMDtype::set){
-			setMode((ShifterMode)cmd->val);
-		}else if(cmd->type == CMDtype::get){
-			*reply += std::to_string((uint8_t)this->mode);
-		}else{
-			printModes(reply);
+CommandStatus ShifterAnalog::command(const ParsedCommand& cmd,std::vector<CommandReply>& replies){
+
+	switch(static_cast<ShifterAnalog_commands>(cmd.cmdId)){
+	case ShifterAnalog_commands::mode:
+		if(cmd.type == CMDtype::set){
+			setMode((ShifterMode)cmd.val);
+		}else if(cmd.type == CMDtype::get){
+			replies.emplace_back((uint8_t)this->mode);
+		}else if(cmd.type == CMDtype::info){
+			replies.emplace_back(printModes());
 		}
-	}else if (cmd->cmd == "shifter_x_12"){
-		handleGetSet(cmd, reply, X_12);
-	}else if (cmd->cmd == "shifter_x_56"){
-		handleGetSet(cmd, reply, X_56);
-	}else if(cmd->cmd == "shifter_y_135"){
-		handleGetSet(cmd, reply, Y_135);
-	}else if(cmd->cmd == "shifter_y_246"){
-		handleGetSet(cmd, reply, Y_246);
-	}else if (cmd->cmd == "shifter_rev_btn"){
-		handleGetSet(cmd, reply, reverseButtonNum);
-	}else if (cmd->cmd == "shifter_cs_pin"){
-		handleGetSet(cmd, reply, cs_pin_num);
-	}else if (cmd->cmd == "shifter_x_chan"){
-		handleGetSet(cmd, reply, x_chan);
-	}else if (cmd->cmd == "shifter_y_chan"){
-		handleGetSet(cmd, reply, y_chan);
-	}else if (cmd->cmd == "shifter_vals" && cmd->type == CMDtype::get){
-		*reply += std::to_string(x_val) + "," + std::to_string(y_val);
-	}else if (cmd->cmd == "shifter_gear" && cmd->type == CMDtype::get){
-		*reply += std::to_string(gear);
-	}else{
-		result = ParseStatus::NOT_FOUND;
+		break;
+
+	case ShifterAnalog_commands::x12:
+		return handleGetSet(cmd, replies, X_12);
+	case ShifterAnalog_commands::x56:
+		return handleGetSet(cmd, replies, X_56);
+	case ShifterAnalog_commands::y135:
+		return handleGetSet(cmd, replies, Y_135);
+	case ShifterAnalog_commands::y246:
+		return handleGetSet(cmd, replies, Y_246);
+	case ShifterAnalog_commands::revbtn:
+		return handleGetSet(cmd, replies, reverseButtonNum);
+	case ShifterAnalog_commands::cspin:
+		return handleGetSet(cmd, replies, cs_pin_num);
+	case ShifterAnalog_commands::xchan:
+		return handleGetSet(cmd, replies, x_chan);
+	case ShifterAnalog_commands::ychan:
+		return handleGetSet(cmd, replies, y_chan);
+	case ShifterAnalog_commands::vals:
+		if(cmd.type == CMDtype::get){
+			replies.emplace_back(x_val,y_val);
+		}else{
+			return CommandStatus::ERR;
+		}
+		break;
+	case ShifterAnalog_commands::gear:
+		if(cmd.type == CMDtype::get){
+			replies.emplace_back(gear);
+		}else{
+			return CommandStatus::ERR;
+		}
+		break;
+
+	default:
+		return CommandStatus::NOT_FOUND;
 	}
-	return result;
+
+	return CommandStatus::OK;
 }
 
 ShifterAnalog::G27ShifterButtonClient::G27ShifterButtonClient(OutputPin& csPin)

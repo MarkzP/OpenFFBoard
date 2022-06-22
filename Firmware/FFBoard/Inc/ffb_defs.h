@@ -62,9 +62,11 @@
 #define HID_ID_POOLREP	0x13	// Usage PID Pool Report
 
 // Control
-#define HID_ID_CUSTOMCMD 0xAF   // Custom cmd
-//#define HID_ID_CUSTOMCMD_IN 0xA2   // Custom cmd in
-//#define HID_ID_CUSTOMCMD_OUT 0xA1   // Custom cmd out
+#define HID_ID_CUSTOMCMD 0xAF   // Custom cmd (old. reserved)
+#define HID_ID_HIDCMD	 0xA1   // HID cmd
+#define HID_ID_STRCMD	 0xAC   // HID cmd as string. reserved
+//#define HID_ID_CUSTOMCMD_IN 0xA2   // Custom cmd in. reserved
+//#define HID_ID_CUSTOMCMD_OUT 0xA1   // Custom cmd out. reserved
 
 
 #define FFB_EFFECT_NONE			0x00
@@ -147,7 +149,7 @@ inline void setHidReportAxis(reportHID_t *report, uint8_t idx, int16_t val){
 typedef struct
 {
 	const uint8_t	reportId = HID_ID_STATE+FFB_ID_OFFSET;
-	uint8_t	effectBlockIndex = 1;	//EffectId
+	//uint8_t	effectBlockIndex = 1;	//EffectId
 	uint8_t	status = (HID_ACTUATOR_POWER) | (HID_ENABLE_ACTUATORS);	// Bits: 0=Device Paused,1=Actuators Enabled,2=Safety Switch,3=Actuator Power, 4=Effect Playing
 
 } __attribute__((packed)) reportFFB_status_t;
@@ -167,7 +169,7 @@ typedef struct
 	uint8_t		triggerButton = 0;	// button ID. unused
 	uint8_t		enableAxis = 0; // bits: 0=X, 1=Y, 2=DirectionEnable
 	uint16_t	directionX = 0;	// angle (0=0 .. 36000=360deg)
-	uint16_t	directionY = 0;	// angle (0=0 .. 36000=360deg)
+	uint16_t	directionY = 0;	// angle (0=0 .. 36000=360deg) TODO axes are last bytes in struct if fewer axes are used. use different report if this is not enough anymore!
 #if MAX_AXIS == 3
 	uint8_t directionZ = 0; // angle (0=0 .. 255=360deg)
 #endif
@@ -190,10 +192,17 @@ typedef struct
 } __attribute__((packed)) FFB_SetCondition_Data_t;
 
 
-
 typedef struct
 	{
-	uint8_t	reportId = HID_ID_BLKLDREP;
+	//uint8_t		reportId; // ID removed by tinyusb
+	uint8_t	effectType;	// Effect type ID
+	uint16_t	byteCount;	// Size of custom effects
+} __attribute__((packed)) FFB_CreateNewEffect_Feature_Data_t;
+
+// Feature GET report
+typedef struct
+	{
+	//uint8_t	reportId = HID_ID_BLKLDREP; // No report ID for tinyusb feature GET
 	uint8_t effectBlockIndex;	// 1..max_effects
 	uint8_t	loadStatus;	// 1=Success,2=Full,3=Error
 	uint16_t	ramPoolAvailable;
@@ -201,17 +210,10 @@ typedef struct
 
 typedef struct
 	{
-	uint8_t		reportId;
-	uint8_t	effectType;	// Effect type ID
-	uint16_t	byteCount;	// Size of custom effects
-} __attribute__((packed)) FFB_CreateNewEffect_Feature_Data_t;
-
-typedef struct
-	{
-	uint8_t	reportId = HID_ID_POOLREP;
+	//uint8_t	reportId = HID_ID_POOLREP; // No report ID for tinyusb feature GET
 	uint16_t	ramPoolSize = MAX_EFFECTS;
 	uint8_t		maxSimultaneousEffects = MAX_EFFECTS;
-	uint8_t		memoryManagement = 1;	// 0=DeviceManagedPool, 1=SharedParameterBlocks
+	uint8_t		memoryManagement = 1;	// 0=DeviceManagedPool (0/1), 1=SharedParameterBlocks (0/1)
 } __attribute__((packed)) FFB_PIDPool_Feature_Data_t;
 
 
@@ -254,6 +256,14 @@ typedef struct
 
 } __attribute__((packed)) FFB_Effect_Condition;
 
+typedef struct
+{
+	uint8_t reportId;
+	uint8_t effectBlockIndex;
+	uint8_t state;
+	uint8_t loopCount;
+} __attribute__((packed)) FFB_EffOp_Data_t;
+
 // Internal struct for storing effects
 typedef struct
 {
@@ -270,7 +280,7 @@ typedef struct
 #if MAX_AXIS == 3
 	uint8_t directionZ = 0; // angle (0=0 .. 255=360deg)
 #endif
-	uint8_t conditionsCount = 0;
+	//uint8_t conditionsCount = 0;
 	FFB_Effect_Condition conditions[MAX_AXIS];
 	int16_t phase = 0;
 	uint16_t period = 0;

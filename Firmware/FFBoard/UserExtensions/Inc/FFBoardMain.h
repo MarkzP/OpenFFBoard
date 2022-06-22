@@ -9,8 +9,6 @@
 #define FFBOARDMAIN_H_
 
 #include <CmdParser.h>
-#include "cppmain.h"
-#include "main.h"
 #include <string>
 #include "ChoosableClass.h"
 #include "CommandHandler.h"
@@ -20,16 +18,23 @@
 
 #include "FFBoardMainCommandThread.h"
 #include "USBdevice.h"
+#include "CommandInterface.h"
+
+#include "SystemCommands.h"
+#include "target_constants.h"
 
 
 class USBdevice;
 class FFBoardMainCommandThread;
+class CDC_CommandInterface;
+class UART_CommandInterface;
 
-class FFBoardMain : virtual ChoosableClass, public CommandHandler{
+class FFBoardMain : public ChoosableClass, public CommandHandler{
 public:
 	static ClassIdentifier info;
 	virtual const ClassIdentifier getInfo();
 	static bool isCreatable() {return true;};
+	const ClassType getClassType() override {return ClassType::Mainclass;};
 
 	FFBoardMain();
 	virtual ~FFBoardMain();
@@ -39,24 +44,27 @@ public:
 	// Callbacks
 	virtual void update();
 	virtual void cdcRcv(char* Buf, uint32_t *Len);
-	virtual void cdcFinished(uint8_t itf); // Cdc send transfer complete
+	virtual void cdcRcvReady(uint8_t itf);
+
 	virtual void usbSuspend(); // Called on usb disconnect and suspend
 	virtual void usbResume(); // Called on usb resume
 
-	uint16_t cdcSend(std::string* reply, std::string* remaining,uint8_t itf = 0);// sends raw data via cdc. returns what was not sent as substring
-
-	virtual void parserDone(std::string* reply, FFBoardMainCommandThread* parser);
-
-	virtual ParseStatus command(ParsedCommand* cmd,std::string* reply); // Append reply strings to reply buffer
-
+	virtual CommandStatus command(const ParsedCommand& cmd,std::vector<CommandReply>& replies);
 
 	virtual std::string getHelpstring();
-	std::unique_ptr<FFBoardMainCommandThread> systemCommands;
-protected:
-	bool usb_busy_retry = false;
-	std::string cdcRemaining;
 
+	std::unique_ptr<FFBoardMainCommandThread> commandThread;
+	std::unique_ptr<CDC_CommandInterface> cdcCmdInterface = std::make_unique<CDC_CommandInterface>();
+	ErrorPrinter errorPrinter; // Prints errors to serial
+	SystemCommands systemCommands; //!< System command handler
+
+#ifdef UARTCOMMANDS
+	std::unique_ptr<UART_CommandInterface> uartCmdInterface = std::make_unique<UART_CommandInterface>(500000); // UART command interface
+#endif
+
+protected:
 	std::unique_ptr<USBdevice> usbdev;
+	static char cdcbuf[]; // cdc buffer
 };
 
 

@@ -10,6 +10,7 @@
 
 #include <MotorDriver.h>
 #include <ExtiHandler.h>
+#include "SPI.h"
 #include <SpiHandler.h>
 #include <PersistentStorage.h>
 #include <Encoder.h>
@@ -22,6 +23,9 @@ class MotorMPM: public MotorDriver,
 		public PersistentStorage,
 		public Encoder,
 		public CommandHandler {
+	enum class MotorMPM_commands : uint32_t {
+		mpm,
+	};
 public:
 	MotorMPM();
 	virtual ~MotorMPM();
@@ -48,7 +52,8 @@ public:
 	void SpiTxRxCplt(SPI_HandleTypeDef *hspi);
 	void SpiError(SPI_HandleTypeDef *hspi);
 
-	ParseStatus command(ParsedCommand* cmd,std::string* reply);
+	CommandStatus command(const ParsedCommand& cmd,std::vector<CommandReply>& replies);
+	virtual std::string getHelpstring(){return "MPM SPI motor driver";}
 
 	void saveFlash();
 	void restoreFlash();
@@ -67,7 +72,11 @@ private:
 	bool ready = false;
 	bool aligned = false;
 	bool positionChanged = false;
-	uint32_t spiErrors;
+	uint32_t spiTxErrors;
+	uint32_t spiRxErrors;
+	uint32_t spiNbr;
+	uint32_t ssiNbr;
+	uint32_t extiNbr;
 
 	SPI_HandleTypeDef *spi;
 

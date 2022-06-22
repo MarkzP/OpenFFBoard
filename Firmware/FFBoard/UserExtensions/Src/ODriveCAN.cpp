@@ -11,14 +11,12 @@
 bool ODriveCAN1::inUse = false;
 ClassIdentifier ODriveCAN1::info = {
 		 .name = "ODrive (M0)" ,
-		 .id=5,
-		 .unique = '0'
+		 .id=CLSID_MOT_ODRV0,	// 5
 };
 bool ODriveCAN2::inUse = false;
 ClassIdentifier ODriveCAN2::info = {
 		 .name = "ODrive (M1)" ,
-		 .id=6,
-		 .unique = '1'
+		 .id=CLSID_MOT_ODRV1,	// 6
 };
 
 
@@ -39,7 +37,7 @@ bool ODriveCAN2::isCreatable(){
 	return !ODriveCAN2::inUse; // Creatable if not already in use for example by another axis
 }
 
-ODriveCAN::ODriveCAN(uint8_t id)  : Thread("ODRIVE", ODRIVE_THREAD_MEM, ODRIVE_THREAD_PRIO), motorId(id) {
+ODriveCAN::ODriveCAN(uint8_t id)  : CommandHandler("odrv", CLSID_MOT_ODRV0,id),  Thread("ODRIVE", ODRIVE_THREAD_MEM, ODRIVE_THREAD_PRIO), motorId(id) {
 
 	if(motorId == 0){
 		nodeId = 0;
@@ -62,13 +60,32 @@ ODriveCAN::ODriveCAN(uint8_t id)  : Thread("ODRIVE", ODRIVE_THREAD_MEM, ODRIVE_T
 	sFilterConfig.SlaveStartFilterBank = 14;
 	this->filterId = this->port->addCanFilter(sFilterConfig);
 
-	this->port->setSpeedPreset(baudrate);
+	if(port->getSpeedPreset() < 3){
+		port->setSpeedPreset(3); // Minimum 250k
+	}
 
+	this->port->setSilentMode(false);
+	this->registerCommands();
+	this->port->takePort();
 	this->Start();
 }
 
 ODriveCAN::~ODriveCAN() {
 	this->setTorque(0.0);
+	this->port->removeCanFilter(filterId);
+	this->port->freePort();
+}
+
+void ODriveCAN::registerCommands(){
+	CommandHandler::registerCommands();
+	registerCommand("canid", ODriveCAN_commands::canid, "CAN id of ODrive",CMDFLAG_GET | CMDFLAG_SET);
+	registerCommand("canspd", ODriveCAN_commands::canspd, "CAN baudrate",CMDFLAG_GET | CMDFLAG_SET);
+	registerCommand("errors", ODriveCAN_commands::errors, "ODrive error flags",CMDFLAG_GET);
+	registerCommand("state", ODriveCAN_commands::state, "ODrive state",CMDFLAG_GET);
+	registerCommand("maxtorque", ODriveCAN_commands::maxtorque, "Max torque to send for scaling",CMDFLAG_GET | CMDFLAG_SET);
+	registerCommand("vbus", ODriveCAN_commands::vbus, "ODrive Vbus",CMDFLAG_GET);
+	registerCommand("anticogging", ODriveCAN_commands::anticogging, "Set 1 to start anticogging calibration",CMDFLAG_SET);
+	registerCommand("connected", ODriveCAN_commands::connected, "ODrive connection state",CMDFLAG_GET);
 }
 
 void ODriveCAN::restoreFlash(){
@@ -82,8 +99,8 @@ void ODriveCAN::restoreFlash(){
 			nodeId = (canIds >> 6) & 0x3f;
 			setting1addr = ADR_ODRIVE_SETTING1_M1;
 		}
-		uint8_t canspd = (canIds >> 12) & 0x7;
-		this->setCanRate(canspd);
+//		uint8_t canspd = (canIds >> 12) & 0x7;
+//		this->setCanRate(canspd);
 	}
 
 	uint16_t settings1 = 0;
@@ -106,7 +123,7 @@ void ODriveCAN::saveFlash(){
 		canIds |= (nodeId & 0x3f) << 6;
 	}
 	canIds &= ~0x7000; // reset bits
-	canIds |= (this->baudrate & 0x7) << 12;
+//	canIds |= (this->baudrate & 0x7) << 12;
 	Flash_Write(ADR_ODRIVE_CANID,canIds);
 
 	uint16_t settings1 = ((int32_t)(maxTorque*100) & 0xfff);
@@ -165,6 +182,16 @@ void ODriveCAN::Run(){
 		if(HAL_GetTick() - lastVoltageUpdate > 1000){
 			requestMsg(0x17); // Update voltage
 		}
+
+		if(HAL_GetTick() - lastCanMessage > 2000){ // Timeout
+			odriveCurrentState = ODriveState::AXIS_STATE_UNDEFINED;
+			state = ODriveLocalState::IDLE;
+			waitReady = true;
+			connected = false;
+		}else{
+			connected = true;
+		}
+
 	}
 }
 
@@ -204,7 +231,7 @@ void ODriveCAN::requestMsg(uint8_t cmd){
 }
 
 float ODriveCAN::getPos_f(){
-	if(motorReady())
+	if(this->connected)
 		requestMsg(0x09);
 	return lastPos-posOffset;
 }
@@ -240,10 +267,10 @@ void ODriveCAN::turn(int16_t power){
 	this->setTorque(torque);
 }
 
-void ODriveCAN::setCanRate(uint8_t canRate){
-	baudrate = clip<uint8_t,uint8_t>(canRate, 3, 5);
-	port->setSpeedPreset(baudrate);
-}
+//void ODriveCAN::setCanRate(uint8_t canRate){
+//	baudrate = clip<uint8_t,uint8_t>(canRate, 3, 5);
+//	port->setSpeedPreset(baudrate);
+//}
 
 /**
  * Sends the start anticogging command
@@ -253,55 +280,75 @@ void ODriveCAN::startAnticogging(){
 }
 
 
-ParseStatus ODriveCAN::command(ParsedCommand* cmd,std::string* reply){
-	 // Prefix set but not our prefix
-	if(cmd->prefix != this->getInfo().unique && cmd->prefix != '\0'){
-		return ParseStatus::NOT_FOUND;
-	}
-	ParseStatus status = ParseStatus::OK;
-	if(cmd->cmd == "odriveCanId"){
-		handleGetSet(cmd, reply, this->nodeId);
+CommandStatus ODriveCAN::command(const ParsedCommand& cmd,std::vector<CommandReply>& replies){
 
-	}else if(cmd->cmd == "odriveMaxTorque"){
-		if(cmd->type == CMDtype::get){
-			int32_t val = maxTorque*100;
-			*reply += std::to_string(val);
-		}else if(cmd->type == CMDtype::set){
-			maxTorque = (float)clip(cmd->val, 0, 0xfff) / 100.0;
+	switch(static_cast<ODriveCAN_commands>(cmd.cmdId)){
+	case ODriveCAN_commands::vbus:
+		if(cmd.type == CMDtype::get){
+			replies.emplace_back(lastVoltage*1000);
+		}else{
+			return CommandStatus::ERR;
 		}
-	}else if(cmd->cmd == "odriveVbus"){
-		if(cmd->type == CMDtype::get){
-			//requestMsg(0x17); // Update voltage for next time
-			int32_t val = lastVoltage*1000;
-			*reply += std::to_string(val);
-		}
+		break;
 
-	}else if(cmd->cmd == "odriveErrors"){
-		if(cmd->type == CMDtype::get){
-			*reply += std::to_string(errors);
+	case ODriveCAN_commands::errors:
+		if(cmd.type == CMDtype::get){
+			replies.emplace_back((uint32_t)errors);
+		}else{
+			return CommandStatus::ERR;
 		}
+		break;
 
-	}else if(cmd->cmd == "odriveAnticogging"){
-		if(cmd->type == CMDtype::set && cmd->val == 1){
+	case ODriveCAN_commands::canid:
+		return handleGetSet(cmd, replies, this->nodeId);
+		break;
+	case ODriveCAN_commands::state:
+		if(cmd.type == CMDtype::get){
+			replies.emplace_back((uint32_t)odriveCurrentState);
+		}else{
+			return CommandStatus::ERR;
+		}
+		break;
+	case ODriveCAN_commands::canspd:
+		if(cmd.type == CMDtype::get){
+			replies.emplace_back(port->getSpeedPreset());
+		}else if(cmd.type == CMDtype::set){
+			port->setSpeedPreset(std::max<uint8_t>(3,cmd.val));
+		}else{
+			return CommandStatus::ERR;
+		}
+		break;
+	case ODriveCAN_commands::anticogging:
+		if(cmd.type == CMDtype::set && cmd.val == 1){
 			this->startAnticogging();
 		}else{
-			*reply+="=1 to start calibration sequence";
+			return CommandStatus::ERR;
 		}
-	}else if(cmd->cmd == "odriveState"){
-		if(cmd->type == CMDtype::get){
-			*reply += std::to_string((uint32_t)odriveCurrentState);
+		break;
+	case ODriveCAN_commands::maxtorque:
+	{
+		if(cmd.type == CMDtype::get){
+			int32_t val = maxTorque*100;
+			replies.emplace_back(val);
+		}else if(cmd.type == CMDtype::set){
+			maxTorque = (float)clip(cmd.val, 0, 0xfff) / 100.0;
+		}else{
+			return CommandStatus::ERR;
 		}
-
-	}else if(cmd->cmd == "odriveCanSpd"){
-		if(cmd->type == CMDtype::get){
-			*reply += std::to_string(baudrate);
-		}else if(cmd->type == CMDtype::set){
-			setCanRate(cmd->val);
-		}
-	}else{
-		status = ParseStatus::NOT_FOUND;
+		break;
 	}
-	return status;
+	case ODriveCAN_commands::connected:
+		if(cmd.type == CMDtype::get){
+			replies.emplace_back(connected ? 1 : 0);
+		}
+		break;
+
+	default:
+		return CommandStatus::NOT_FOUND;
+	}
+
+	return CommandStatus::OK;
+
 }
 
 
@@ -314,12 +361,18 @@ void ODriveCAN::canRxPendCallback(CAN_HandleTypeDef *hcan,uint8_t* rxBuf,CAN_RxH
 	uint64_t msg = *reinterpret_cast<uint64_t*>(rxBuf);
 	uint8_t cmd = rxHeader->StdId & 0x1F;
 
+	lastCanMessage = HAL_GetTick();
+
 	switch(cmd){
 	case 1:
 	{
 		// TODO error handling
-		errors = msg & 0xffffffff;
-		odriveCurrentState = (ODriveState)( (msg >> 32) & 0xffffffff);
+		errors = (msg & 0xffffffff);
+		odriveCurrentState = (ODriveState)( (msg >> 32) & 0xff);
+		odriveMotorFlags = (msg >> 40) & 0xff;
+		odriveEncoderFlags = ((msg >> 48) & 0xff);
+		odriveControllerFlags = (msg >> 56) & 0xff;
+
 		if(waitReady){
 			waitReady = false;
 			state = ODriveLocalState::WAIT_READY;

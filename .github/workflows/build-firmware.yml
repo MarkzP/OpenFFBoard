@@ -1,0 +1,63 @@
+name: Build OpenFFBoard firmware
+
+# Controls when the workflow will run
+on:
+  push:
+    branches: 
+      - master
+      - development
+  pull_request:
+    branches:
+      - master
+      - development
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+  # Can be called
+  workflow_call:
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # Build firmware
+  Build_firmware:
+    name: Build firmware
+    strategy:
+        fail-fast: false
+        matrix:
+          target: ['F411RE', 'F407VG'] # Targets to build
+
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+      
+      - {uses: ./.github/actions/build-firmware, with: {target: '${{ matrix.target }}', path: 'Output'}}
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: OpenFFBoard-Firmware-${{ matrix.target }}
+          path: ./Firmware/Output
+
+  # Release:
+  #   needs: [Build_firmware] # Requires build first
+  #   name: Release if tagged
+  #   runs-on: ubuntu-latest
+  #   if: startsWith(github.ref, 'refs/tags/v')
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - uses: actions/download-artifact@v3
+  #       with:
+  #         path: etc/usr/artifacts/
+
+  #     - name: Display structure of downloaded files
+  #       run: ls -R
+  #       working-directory: etc/usr/artifacts/
+
+  #     - name: Release
+  #       uses: softprops/action-gh-release@v1
+  #       if: startsWith(github.ref, 'refs/tags/')
+  #       with:
+  #         body_path: ${{ github.workspace }}/CHANGELOG.txt
+  #         body: "Release notes coming soon"

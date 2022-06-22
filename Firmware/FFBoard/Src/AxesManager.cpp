@@ -23,7 +23,7 @@
 
 AxesManager::AxesManager(volatile Control_t* control) {
 	this->control = control;
-	this->restoreFlash();
+	//this->restoreFlash();
 }
 
 AxesManager::~AxesManager() {
@@ -42,25 +42,22 @@ void AxesManager::setEffectsCalculator(EffectsCalculator* calc) {
 	this->effects_calc = calc;
 }
 
-void AxesManager::restoreFlash() {
-	uint16_t val;
-	bool res = (Flash_Read(ADR_AXIS_COUNT, &val));
-
-	if (!res || !this->validAxisRange(val)) {
-		val = 1;
-	}
-	this->setAxisCount(val);
-//	for (auto &axis : axes) {
-//		axis->restoreFlash();
+//void AxesManager::restoreFlash() {
+//	uint16_t val;
+//	bool res = (Flash_Read(ADR_AXIS_COUNT, &val));
+//
+//	if (!res || !this->validAxisRange(val)) {
+//		val = 1;
 //	}
-}
-
-void AxesManager::saveFlash() {
-	Flash_Write(ADR_AXIS_COUNT, this->axis_count);
-//	for (auto &axis : axes) {
-//		axis->saveFlash();
-//	}
-}
+//	this->setAxisCount(val);
+////	for (auto &axis : axes) {
+////		axis->restoreFlash();
+////	}
+//}
+//
+//void AxesManager::saveFlash() {
+//	Flash_Write(ADR_AXIS_COUNT, this->axis_count);
+//}
 
 void AxesManager::update() {
 	for (auto &axis: axes) {
@@ -73,7 +70,6 @@ void AxesManager::update() {
 
 void AxesManager::updateTorque() {
 	for (auto &axis: axes) {
-		// New torque stored in normalizedAxes.encoderTorque;
 		axis->updateDriveTorque();
 	}
 }
@@ -86,9 +82,9 @@ std::vector<int32_t>* AxesManager::getAxisValues(){
 	return &this->axisValues;
 }
 
-void AxesManager::emergencyStop() {
+void AxesManager::emergencyStop(bool reset) {
 	for (auto &axis : axes) {
-		axis->emergencyStop();
+		axis->emergencyStop(reset);
 	}
 }
 
@@ -139,22 +135,3 @@ void AxesManager::resetPosZero() {
 			axis->setPos(0);
 		}
 }
-
-
-// ---- AXis Commands ----
-
-//ParseStatus AxesManager::command(ParsedCommand* cmd,std::string* reply){
-//	if (cmd->axis >= 0 && cmd->axis < axes.size()) {
-//		return axes[cmd->axis]->command(cmd, reply);
-//	}
-//	return ParseStatus::NOT_FOUND;
-//}
-
-//void AxesManager::processHidCommand(HID_Custom_Data_t *data){
-//	uint8_t axis = (data->cmd >> 6) & 0x3;
-//	if(axis<axis_count) {
-//		return axes[axis]->processHidCommand(data);
-//	}else{
-//		return false;
-//	}
-//}

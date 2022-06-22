@@ -57,6 +57,7 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 void RebootDFU();
+void ExitDFU();
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
@@ -183,5 +184,3 @@ void   MX_USB_OTG_FS_PCD_Init(void);
 #endif
 
 #endif /* __MAIN_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

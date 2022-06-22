@@ -14,19 +14,30 @@
 
 // Hardware name string
 #define HW_TYPE "F411RE"
+#define HW_TYPE_INT 1
+#define FW_DEVID 0x431 // Firmware should run on this chip devid
+
 
 // Enabled features
 
 // Main classes
 #define FFBWHEEL
+#define FFBJOYSTICK
 #define MIDI
 #define TMCDEBUG
+
+/*
+ * FFBWheel uses 2 FFB axis descriptor instead of 1 axis.
+ * Might improve compatibility with direct input but will report a 2 axis ffb compatible device
+ */
+//#define FFBWHEEL_USE_1AXIS_DESC
 
 
 // Extra features
 #define LOCALBUTTONS
 #define SPIBUTTONS
-//#define SPIBUTTONS2 // Additional spi source
+//#define SPIBUTTONS2 // Additional spi source. Not supported
+#define PCF8574BUTTONS // Requires I2C
 #define SHIFTERBUTTONS
 #define ANALOGAXES
 #define TMC4671DRIVER
@@ -38,6 +49,10 @@
 #define TIM_ENC htim3
 // Timer 3 is used by the encoder.
 #define TIM_USER htim9
+#define TIM_TMC htim2
+
+extern I2C_HandleTypeDef hi2c3;
+#define I2C_PORT hi2c3
 
 #define TIM_MICROS htim10
 extern UART_HandleTypeDef huart1;
@@ -62,11 +77,6 @@ extern volatile uint32_t ADC1_BUF[ADC1_CHANNELS]; // Buffer
 
 #define BUTTON_PINS 8
 
-/*
- * Scaler to convert from ADC counts to amps
- * Depends on shunt and amplifier values
- */
-#define TMC_CURRENTSCALER 2.5 / (0x7fff * 60.0 * 0.0015)
 
 
 #define HSPIDRV hspi1

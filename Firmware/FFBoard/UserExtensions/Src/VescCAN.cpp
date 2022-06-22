@@ -7,12 +7,45 @@
 #include "target_constants.h"
 #ifdef VESC
 #include <VescCAN.h>
+#include "ClassIDs.h"
 
+// *****    static initializer for the VESC_1 instance (extend VESC_CAN) *****
 
-VescCAN::VescCAN() :
-		Thread("VESC", VESC_THREAD_MEM, VESC_THREAD_PRIO) {
+bool VESC_1::inUse = false;
 
-	VescCAN::vescInUse = true;
+ClassIdentifier VESC_1::info = {
+	 .name = "VESC 1" ,
+	 .id=CLSID_MOT_VESC0
+};
+
+bool VESC_1::isCreatable() {
+	return !VESC_1::inUse;
+}
+
+const ClassIdentifier VESC_1::getInfo() {
+	return info;
+}
+
+// *****    static initializer for the VESC_2 instance (extend VESC_CAN) *****
+/*
+bool VESC_2::inUse = false;
+ClassIdentifier VESC_2::info = { "VESC 2", CLSID_MOT_VESC1, false };
+
+bool VESC_2::isCreatable() {
+	return !VESC_2::inUse;
+}
+
+const ClassIdentifier VESC_2::getInfo() {
+	return info;
+}
+*/
+// *****    				 VESC_CAN							 *****
+
+VescCAN::VescCAN(uint8_t address) :
+		CommandHandler("vesc", CLSID_MOT_VESC0, address), Thread("VESC", VESC_THREAD_MEM,
+				VESC_THREAD_PRIO) {
+
+	setAddress(address);
 	restoreFlash();
 
 	// Set up a filter to receive vesc commands
@@ -29,26 +62,31 @@ VescCAN::VescCAN() :
 	sFilterConfig.SlaveStartFilterBank = 14;
 	this->filterId = this->port->addCanFilter(sFilterConfig);
 
-	this->port->setSpeedPreset(baudrate);
+	//this->setCanRate(this->baudrate);
+	if(port->getSpeedPreset() < 3){
+		port->setSpeedPreset(3); // Minimum 250k
+	}
+	this->port->takePort();
 
+	registerCommands();
 	this->Start();
+
 }
 
 VescCAN::~VescCAN() {
-	VescCAN::vescInUse = false;
 	this->stopMotor();
+	this->port->freePort();
 	this->state = VescState::VESC_STATE_UNKNOWN;
 }
 
-bool VescCAN::vescInUse = false;
-ClassIdentifier VescCAN::info = { .name = "VESC", .id = 7, .unique = '1' };
-
-const ClassIdentifier VescCAN::getInfo() {
-	return info;
-}
-
-bool VescCAN::isCreatable() {
-	return !VescCAN::vescInUse; // Creatable if not already in use for example by another axis
+void VescCAN::setAddress(uint8_t address) {
+	if (address == 0) {
+		this->flashAddrs = VescFlashAddrs( { ADR_VESC1_CANID, ADR_VESC1_DATA, ADR_VESC1_OFFSET });
+	} else if (address == 1) {
+		this->flashAddrs = VescFlashAddrs( { ADR_VESC2_CANID, ADR_VESC2_DATA, ADR_VESC2_OFFSET });
+	} else if (address == 2) {
+		this->flashAddrs = VescFlashAddrs( { ADR_VESC3_CANID, ADR_VESC3_DATA, ADR_VESC3_OFFSET });
+	}
 }
 
 void VescCAN::turn(int16_t power) {
@@ -58,8 +96,8 @@ void VescCAN::turn(int16_t power) {
 }
 
 void VescCAN::stopMotor() {
-	activeMotor = false;
 	this->setTorque(0.0);
+	activeMotor = false;
 }
 
 void VescCAN::startMotor() {
@@ -82,42 +120,45 @@ bool VescCAN::motorReady() {
 }
 
 void VescCAN::restoreFlash() {
-	uint16_t canIds = 0x0D40;
-	if (Flash_Read(ADR_VESC_CANDATA, &canIds)) {
-		nodeId = canIds & 0xFF;
+	uint16_t dataFlash = 0;
 
-		uint8_t canspd = (canIds >> 8) & 0x7;
-		this->setCanRate(canspd);
-
-		useEncoder = (canIds >> 11) & 0x1;
+	if (Flash_Read(flashAddrs.canId, &dataFlash)) {
+		this->OFFB_can_Id = dataFlash & 0xFF;
+		this->VESC_can_Id = (dataFlash >> 8) & 0xFF;
 	}
 
-	uint16_t offset = 0;
-	if(Flash_Read(ADR_VESC_OFFSET, &offset)){
-		posOffset = (float) ((int16_t)offset / 10000.0);
+	if (Flash_Read(flashAddrs.data, &dataFlash)) {
 
-		posOffset = posOffset - (int)posOffset;	// Remove the multi-turn value
-		bool moreThanHalfTurn = fabs(posOffset) > 0.5 ? 1 : 0;
+		uint8_t canspd = dataFlash & 0b111;
+		//this->baudrate = canspd;
+
+		this->useEncoder = (dataFlash >> 3) & 0x1;
+	}
+
+	if (Flash_Read(flashAddrs.offset, &dataFlash)) {
+		this->posOffset = (float) ((int16_t) dataFlash / 10000.0);
+
+		this->posOffset = this->posOffset - (int) this->posOffset; // Remove the multi-turn value
+		bool moreThanHalfTurn = fabs(this->posOffset) > 0.5 ? 1 : 0;
 		if (moreThanHalfTurn) {
 			// if delta is neg, turn is CCW, decrement multi turn pos... else increment it
-			posOffset += (posOffset > 0) ? -1.0 : 1.0;
+			this->posOffset += (this->posOffset > 0) ? -1.0 : 1.0;
 		}
 	}
 
 }
 
 void VescCAN::saveFlash() {
-	uint16_t canIds = 0x0D40;
-	Flash_Read(ADR_VESC_CANDATA, &canIds); // Read again
-	canIds &= ~0xFF; 			// reset bits for nodeId
-	canIds |= nodeId & 0xFF;	// set the nodeId
+	uint16_t dataFlash = 0;
 
-	canIds &= ~0x700;			// reset and set the baudrate
-	canIds |= (this->baudrate & 0x7) << 8;
+	// save the OpenFFBoard Can Id in 0..7 and the Vesc_can_id in the 8..15
+	dataFlash = (this->VESC_can_Id << 8) | this->OFFB_can_Id;
+	Flash_Write(flashAddrs.canId, dataFlash);
 
-	canIds &= ~0x800;			// reset and set the useEncoder
-	canIds |= (useEncoder & 0x1) << 11;
-	Flash_Write(ADR_VESC_CANDATA, canIds);
+	dataFlash = 0;
+	//dataFlash |= (this->baudrate & 0b111); // set the baudrate in 0..2 bit
+	dataFlash |= (this->useEncoder & 0x1) << 3;  // set the encoder use in bit 3
+	Flash_Write(flashAddrs.data, dataFlash);
 
 	saveFlashOffset();
 }
@@ -125,15 +166,15 @@ void VescCAN::saveFlash() {
 void VescCAN::saveFlashOffset() {
 
 	// store the -180°/180°offset
-	float storedOffset = posOffset - (int)posOffset;	// Remove the multi-turn value
+	float storedOffset = this->posOffset - (int) this->posOffset; // Remove the multi-turn value
 	bool moreThanHalfTurn = fabs(storedOffset) > 0.5 ? 1 : 0;
 	if (moreThanHalfTurn) {
 		// if delta is neg, turn is CCW, decrement multi turn pos... else increment it
 		storedOffset += (storedOffset > 0) ? -1.0 : 1.0;
 	}
 
-	uint16_t settings1 = ((int16_t)(storedOffset*10000) & 0xFFFF);
-	Flash_Write(ADR_VESC_OFFSET, settings1);
+	uint16_t dataFlash = ((int16_t) (storedOffset * 10000) & 0xFFFF);
+	Flash_Write(flashAddrs.offset, dataFlash);
 
 }
 
@@ -162,65 +203,91 @@ uint32_t VescCAN::getCpr() {
 	return 0xFFFF;
 }
 
-ParseStatus VescCAN::command(ParsedCommand *cmd, std::string *reply) {
-	// Prefix set but not our prefix
-	if (cmd->prefix != this->getInfo().unique && cmd->prefix != '\0') {
-		return ParseStatus::NOT_FOUND;
+void VescCAN::registerCommands() {
+	CommandHandler::registerCommands();
+	registerCommand("offbcanid", VescCAN_commands::offbcanid, "CAN id of OpenFFBoard Axis", CMDFLAG_GET | CMDFLAG_SET);
+	registerCommand("vesccanid", VescCAN_commands::vesccanid, "CAN id of VESC", CMDFLAG_GET | CMDFLAG_SET);
+	registerCommand("canspd", VescCAN_commands::canspd, "CAN baud (3=250k 4=500k 5=1M)", CMDFLAG_GET | CMDFLAG_SET);
+	registerCommand("errorflags", VescCAN_commands::errorflags, "VESC error state", CMDFLAG_GET);
+	registerCommand("vescstate", VescCAN_commands::vescstate, "VESC state", CMDFLAG_GET);
+	registerCommand("voltage", VescCAN_commands::voltage, "VESC supply voltage (mV)", CMDFLAG_GET);
+	registerCommand("encrate", VescCAN_commands::encrate, "Encoder update rate", CMDFLAG_GET);
+	registerCommand("pos", VescCAN_commands::pos, "VESC position", CMDFLAG_GET);
+	registerCommand("torque", VescCAN_commands::torque, "Current VESC torque", CMDFLAG_GET);
+	registerCommand("forceposread", VescCAN_commands::forcePosRead, "Force a position update", CMDFLAG_GET);
+	registerCommand("useencoder", VescCAN_commands::useEncoder, "Enable VESC encoder", CMDFLAG_GET | CMDFLAG_SET);
+	registerCommand("offset", VescCAN_commands::offset, "Get or set encoder offset", CMDFLAG_GET | CMDFLAG_SET);
+}
+
+CommandStatus VescCAN::command(const ParsedCommand &cmd,
+		std::vector<CommandReply> &replies) {
+
+	switch (static_cast<VescCAN_commands>(cmd.cmdId)) {
+
+	case VescCAN_commands::offbcanid:
+		return handleGetSet(cmd, replies, this->OFFB_can_Id);
+	case VescCAN_commands::vesccanid:
+		return handleGetSet(cmd, replies, this->VESC_can_Id);
+	case VescCAN_commands::errorflags:
+		if (cmd.type == CMDtype::get)
+			replies.emplace_back(vescErrorFlag);
+		break;
+	case VescCAN_commands::canspd:
+		if (cmd.type == CMDtype::get) {
+			replies.emplace_back(port->getSpeedPreset());
+		} else if (cmd.type == CMDtype::set) {
+			port->setSpeedPreset(std::max<uint8_t>(3,cmd.val));
+		}
+		break;
+	case VescCAN_commands::vescstate:
+		if (cmd.type == CMDtype::get)
+			replies.emplace_back((uint32_t) this->state);
+		break;
+	case VescCAN_commands::encrate:
+		if (cmd.type == CMDtype::get)
+			replies.emplace_back((uint32_t) this->encRate);
+		break;
+	case VescCAN_commands::pos:
+		if (cmd.type == CMDtype::get) {
+			replies.push_back(
+					CommandReply(
+							(int32_t) ((lastPos - posOffset) * 1000000000)));
+		}
+		break;
+	case VescCAN_commands::torque:
+		if (cmd.type == CMDtype::get) {
+			replies.emplace_back((int32_t) (lastTorque * 10000));
+		}
+		break;
+	case VescCAN_commands::forcePosRead:
+		this->askPositionEncoder();
+		break;
+	case VescCAN_commands::useEncoder:
+		if (cmd.type == CMDtype::get) {
+			replies.emplace_back(useEncoder ? 1 : 0);
+		} else if (cmd.type == CMDtype::set) {
+			useEncoder = cmd.val != 0;
+		}
+		break;
+	case VescCAN_commands::offset: {
+		if (cmd.type == CMDtype::get) {
+			replies.emplace_back((int32_t) (posOffset * 10000));
+		} else if (cmd.type == CMDtype::set) {
+			posOffset = (float) cmd.val / 10000.0;
+			this->saveFlashOffset(); // Really save to flash?
+		}
 	}
-	ParseStatus status = ParseStatus::OK;
-	if (cmd->cmd == "vescCanId") {
-		handleGetSet(cmd, reply, this->nodeId);
-	} else if (cmd->cmd == "vescErrorFlag") {
-		if (cmd->type == CMDtype::get) {
-			*reply += std::to_string(vescErrorFlag);
-		}
-	} else if (cmd->cmd == "vescState") {
-		if (cmd->type == CMDtype::get) {
-			*reply += std::to_string((uint32_t) state);
-		}
-	} else if (cmd->cmd == "vescCanSpd") {
-		if (cmd->type == CMDtype::get) {
-			*reply += std::to_string(baudrate);
-		} else if (cmd->type == CMDtype::set) {
-			this->setCanRate(cmd->val);
-		}
-	} else if (cmd->cmd == "vescEncRate") {
-		if (cmd->type == CMDtype::get) {
-			*reply += std::to_string((uint32_t) encRate);
-		}
-	} else if (cmd->cmd == "vescPos") {
-		if (cmd->type == CMDtype::get) {
-			*reply += std::to_string((int32_t) ((lastPos - posOffset) * 1000000000));
-		}
-	} else if (cmd->cmd == "vescTorque") {
-		if (cmd->type == CMDtype::get) {
-			*reply += std::to_string((int32_t) (lastTorque * 10000));
-		}
-	} else if (cmd->cmd == "vescPosReadForce") {
-		if(cmd->type == CMDtype::set){
-			this->askPositionEncoder();
-		}
-	} else if (cmd->cmd == "vescUseEncoder") {
-		if (cmd->type == CMDtype::get) {
-			*reply += std::to_string((int32_t) useEncoder);
-		} else if(cmd->type == CMDtype::set){
-			useEncoder = cmd->val;
-		}
-	} else if (cmd->cmd == "vescOffset") {
-		if (cmd->type == CMDtype::get) {
-			*reply += std::to_string((int32_t) (posOffset * 10000));
-		} else if(cmd->type == CMDtype::set){
-			posOffset = 0;
-			this->saveFlashOffset();
-		}
-	} else if (cmd->cmd == "vescVoltage") {
-		if (cmd->type == CMDtype::get) {
-			*reply += std::to_string((int32_t) (voltage * 100));
-		}
-	} else {
-		status = ParseStatus::NOT_FOUND;
+		break;
+	case VescCAN_commands::voltage:
+		if (cmd.type == CMDtype::get)
+			replies.emplace_back(voltage * 1000);
+		break;
+
+	default:
+		return CommandStatus::NOT_FOUND;
 	}
-	return status;
+
+	return CommandStatus::OK;
 }
 
 /*
@@ -238,7 +305,6 @@ void VescCAN::Run() {
 
 	while (true) {
 		Delay(500);
-
 		// if status is UNKNOW, ask firmware info and wait next 500ms
 		if (state == VescState::VESC_STATE_UNKNOWN) {
 			this->getFirmwareInfo();
@@ -255,15 +321,15 @@ void VescCAN::Run() {
 
 		// test is a ready/error vesc is always respond
 		uint32_t period = HAL_GetTick() - lastVescResponse;
-		if ( (state == VescState::VESC_STATE_READY || state == VescState::VESC_STATE_ERROR)
-				&& period > 1000) {
+		if ((state == VescState::VESC_STATE_READY
+				|| state == VescState::VESC_STATE_ERROR) && period > 1000) {
 			state = VescState::VESC_STATE_UNKNOWN;
 		}
 
-
 		// when motor is active we call vesc each 500ms, to disable the vesc watchdog
 		// (if vesc not received message in 1sec, it cut off motor)
-		if (lastTorque != 0.0 && activeMotor && state == VescState::VESC_STATE_READY) {
+		if (lastTorque != 0.0 && activeMotor
+				&& state == VescState::VESC_STATE_READY) {
 			this->setTorque(lastTorque);
 		}
 
@@ -283,19 +349,19 @@ void VescCAN::Run() {
  * 										CAN SECTION
  */
 
-void VescCAN::setCanRate(uint8_t canRate) {
-	baudrate = clip<uint8_t, uint8_t>(canRate, 3, 5);
-	port->setSpeedPreset(baudrate);
-}
+//void VescCAN::setCanRate(uint8_t canRate) {
+//	this->baudrate = clip<uint8_t, uint8_t>(canRate, 3, 5);
+//	this->port->setSpeedPreset(baudrate);
+//}
 
 /**
  * Get the firmware vesc information
  */
 void VescCAN::getFirmwareInfo() {
-    uint8_t msg[3];
-	msg[0] =  nodeId;
-	msg[1] =  0x00;							// ask vesc to process the msg
-	msg[2] =  (uint8_t)VescCmd::COMM_FW_VERSION;		// sub action is to get FW version
+	uint8_t msg[3];
+	msg[0] = this->OFFB_can_Id;
+	msg[1] = 0x00;								// ask vesc to process the msg
+	msg[2] = (uint8_t) VescCmd::COMM_FW_VERSION;// sub action is to get FW version
 
 	this->sendMsg((uint8_t) VescCANMsg::CAN_PACKET_PROCESS_SHORT_BUFFER, msg,
 			sizeof(msg));
@@ -306,9 +372,10 @@ void VescCAN::getFirmwareInfo() {
  */
 void VescCAN::sendPing() {
 	uint8_t buffer[1];
-	buffer[0] = this->nodeId;
+	buffer[0] = this->OFFB_can_Id;
 
-	this->sendMsg((uint8_t) VescCANMsg::CAN_PACKET_PING, buffer, sizeof(buffer));
+	this->sendMsg((uint8_t) VescCANMsg::CAN_PACKET_PING, buffer,
+			sizeof(buffer));
 }
 
 /**
@@ -318,7 +385,8 @@ void VescCAN::sendPing() {
 void VescCAN::setTorque(float torque) {
 
 	// Check if vesc CAN is ok, if it is, send a message
-	if (!this->motorReady() || !activeMotor) return;
+	if (!this->motorReady() || !activeMotor)
+		return;
 
 	uint8_t buffer[4];
 	int32_t send_index = 0;
@@ -333,12 +401,12 @@ void VescCAN::setTorque(float torque) {
  * Get the telemetry : Status & Value
  */
 void VescCAN::askGetValue() {
-    uint8_t msg[8];
-	msg[0] =  nodeId;
-	msg[1] =  0x00;					// ask vesc to process the msg
-	msg[2] =  (uint8_t)VescCmd::COMM_GET_VALUES_SELECTIVE;					// sub action is COMM_GET_VALUES_SELECTIVE : ask wanted data
-	uint32_t request = ((uint32_t)1 << 15); // bit 15 = ask vesc status (1byte)
-	request |= ((uint32_t)1 << 8);				// bit 8  = ask voltage	(2byte)
+	uint8_t msg[8];
+	msg[0] = this->OFFB_can_Id;
+	msg[1] = 0x00;					// ask vesc to process the msg
+	msg[2] = (uint8_t) VescCmd::COMM_GET_VALUES_SELECTIVE;// sub action is COMM_GET_VALUES_SELECTIVE : ask wanted data
+	uint32_t request = ((uint32_t) 1 << 15); // bit 15 = ask vesc status (1byte)
+	request |= ((uint32_t) 1 << 8);				// bit 8  = ask voltage	(2byte)
 
 	int32_t index = 3;
 	this->buffer_append_uint32(msg, request, &index);
@@ -354,7 +422,6 @@ void VescCAN::askGetValue() {
 void VescCAN::askPositionEncoder() {
 	this->sendMsg((uint8_t) VescCANMsg::CAN_PACKET_POLL_ROTOR_POS, nullptr, 0);
 }
-
 
 /*
  * Compute the new position (laspos) value from data received by vesc:
@@ -386,7 +453,7 @@ void VescCAN::sendMsg(uint8_t cmd, uint8_t *buffer, uint8_t len) {
 	msg.header.RTR = CAN_RTR_DATA;
 	msg.header.DLC = len;
 	msg.header.IDE = CAN_ID_EXT;
-	msg.header.ExtId = VESC_CAN_ID | (cmd << 8);
+	msg.header.ExtId = this->VESC_can_Id | (cmd << 8);
 	port->sendMessage(msg);
 }
 
@@ -396,25 +463,25 @@ void VescCAN::decode_buffer(uint8_t *buffer, uint8_t len) {
 		return;
 	}
 
-	VescCmd command = (VescCmd)(buffer[0] & 0xFF);
+	VescCmd command = (VescCmd) (buffer[0] & 0xFF);
 	buffer++;
 	len--;
 
 	switch (command) {
 
-	case VescCmd::COMM_FW_VERSION : {
+	case VescCmd::COMM_FW_VERSION: {
 		int32_t ind = 0;
-		uint8_t fw_major 	= buffer[ind++];
-		uint8_t fw_min 		= buffer[ind++];
+		uint8_t fw_major = buffer[ind++];
+		uint8_t fw_min = buffer[ind++];
 
-		std::string test ((char *)buffer + ind);
+		std::string test((char*) buffer + ind);
 		ind += test.length() + 1;
 
-		uint8_t uuid[12];
+		uint8_t uuid[12] = { 0 };
 		memcpy(buffer + ind, uuid, 12);
 		ind += 12;
 
-		bool isPaired = buffer[ind++];
+		//bool isPaired = buffer[ind++];
 		uint8_t isTestFw = buffer[ind++];
 
 		//uint8_t hwType = buffer[ind++];			// Comment because unused
@@ -422,12 +489,12 @@ void VescCAN::decode_buffer(uint8_t *buffer, uint8_t len) {
 
 		// bool hasPhaseFilters = buffer[ind++];	// Comment because unused
 
-
 		bool compatible = false;
 		if (!isTestFw)
 			compatible = ((fw_major << 8) | fw_min) >= (FW_MIN_RELEASE >> 8);
 		else
-			compatible = ((fw_major << 16) | (fw_min << 8) | isTestFw) >= FW_MIN_RELEASE;
+			compatible = ((fw_major << 16) | (fw_min << 8) | isTestFw)
+					>= FW_MIN_RELEASE;
 
 		if (compatible) {
 			this->state = VescState::VESC_STATE_COMPATIBLE;
@@ -438,14 +505,14 @@ void VescCAN::decode_buffer(uint8_t *buffer, uint8_t len) {
 		break;
 	}
 
-	case VescCmd::COMM_GET_VALUES_SELECTIVE : {
+	case VescCmd::COMM_GET_VALUES_SELECTIVE: {
 		int32_t ind = 0;
 		uint32_t mask = this->buffer_get_uint32(buffer, &ind);
 
-		if (mask & ((uint32_t)1 << 8)) {
+		if (mask & ((uint32_t) 1 << 8)) {
 			voltage = this->buffer_get_float16(buffer, 1e1, &ind);
 		}
-		if (mask & ((uint32_t)1 << 15)) {
+		if (mask & ((uint32_t) 1 << 15)) {
 			vescErrorFlag = buffer[ind++];
 
 			// if the vesc respond but with an error, we put the vesc in error flag
@@ -456,7 +523,7 @@ void VescCAN::decode_buffer(uint8_t *buffer, uint8_t len) {
 			}
 
 		}
-		if (mask & ((uint32_t)1 << 16)) {
+		if (mask & ((uint32_t) 1 << 16)) {
 			float pos = this->buffer_get_float32(buffer, 1e6, &ind);
 			this->decodeEncoderPosition(pos);
 		}
@@ -491,81 +558,88 @@ void VescCAN::canRxPendCallback(CAN_HandleTypeDef *hcan, uint8_t *rxBuf,
 		CAN_RxHeaderTypeDef *rxHeader, uint32_t fifo) {
 
 	// we record the last time respond to check if vesc is OK
-	lastVescResponse =  HAL_GetTick();
+	lastVescResponse = HAL_GetTick();
 
 	// Check if message is for the openFFBoard
-	uint16_t node = rxHeader->ExtId & 0xFF;
+	uint16_t destCanID = rxHeader->ExtId & 0xFF;
 
 	// Extract the command encoded in the ExtId
 	VescCANMsg cmd = (VescCANMsg) (rxHeader->ExtId >> 8);
 
-	// if msg is not for this node && mesg not a poll result, bypass
-	if ((node != this->nodeId) && (cmd != VescCANMsg::CAN_PACKET_POLL_ROTOR_POS )) {
+	bool messageIsForThisVescAxis = destCanID == this->OFFB_can_Id;
+	messageIsForThisVescAxis |= (cmd == VescCANMsg::CAN_PACKET_POLL_ROTOR_POS) &&	// if it's a encoder position message
+				(this->VESC_can_Id == 0xFF); // and the vescCanId is not the default one
+	messageIsForThisVescAxis |= (cmd == VescCANMsg::CAN_PACKET_POLL_ROTOR_POS)
+			&&	// if it's a encoder position message
+			(this->VESC_can_Id != 0xFF) && // and the vescCanId is not the default one
+			(destCanID == this->VESC_can_Id); // we check that emiterId is the vescId for this axis
+
+	if (!messageIsForThisVescAxis)
 		return;
-	}
 
 	// Process the CAN message received
 	switch (cmd) {
 
-		case VescCANMsg::CAN_PACKET_FILL_RX_BUFFER: {
-			memcpy(buffer_rx + rxBuf[0], rxBuf + 1, rxHeader->DLC - 1);
+	case VescCANMsg::CAN_PACKET_FILL_RX_BUFFER: {
+		memcpy(buffer_rx + rxBuf[0], rxBuf + 1, rxHeader->DLC - 1);
+		break;
+	}
+
+	case VescCANMsg::CAN_PACKET_FILL_RX_BUFFER_LONG: {
+		uint32_t rxbuf_ind = (unsigned int) rxBuf[0] << 8;
+		rxbuf_ind |= rxBuf[1];
+		if (rxbuf_ind < BUFFER_RX_SIZE) {
+			memcpy(buffer_rx + rxbuf_ind, rxBuf + 2, rxHeader->DLC - 2);
+		}
+		break;
+	}
+
+	case VescCANMsg::CAN_PACKET_PROCESS_RX_BUFFER: {
+
+		// remove 2 first byte to exclude "can emitter id" and the "send bool" flag from buffer
+		int32_t index = 2;
+
+		uint32_t rxbuf_length = (uint32_t) rxBuf[index++] << 8;
+		rxbuf_length |= (uint32_t) rxBuf[index++];
+
+		if (rxbuf_length > BUFFER_RX_SIZE) {
 			break;
 		}
 
-		case VescCANMsg::CAN_PACKET_FILL_RX_BUFFER_LONG: {
-			uint32_t rxbuf_ind = (unsigned int)rxBuf[0] << 8;
-			rxbuf_ind |= rxBuf[1];
-			if (rxbuf_ind < BUFFER_RX_SIZE) {
-				memcpy(buffer_rx + rxbuf_ind, rxBuf + 2, rxHeader->DLC - 2);
-			}
-			break;
+		uint8_t crc_high = rxBuf[index++];
+		uint8_t crc_low = rxBuf[index++];
+
+		if (crc16(buffer_rx, rxbuf_length)
+				== ((uint8_t) crc_high << 8 | (uint8_t) crc_low)) {
+
+			this->decode_buffer(buffer_rx, rxbuf_length);
+
 		}
 
-		case VescCANMsg::CAN_PACKET_PROCESS_RX_BUFFER: {
+		break;
+	}
+	case VescCANMsg::CAN_PACKET_PROCESS_SHORT_BUFFER: {
 
-			// remove 2 first byte to exclude "can emitter id" and the "send bool" flag from buffer
-			int32_t index = 2;
+		// remove 2 first byte to exclude "can emitter id" and the "send bool" flag from buffer
+		this->decode_buffer(rxBuf + 2, rxHeader->DLC - 2);
 
-			uint32_t rxbuf_length = (uint32_t)rxBuf[index++] << 8;
-			rxbuf_length |= (uint32_t)rxBuf[index++];
+		break;
+	}
 
-			if (rxbuf_length > BUFFER_RX_SIZE) {
-				break;
-			}
+	case VescCANMsg::CAN_PACKET_PONG:
+		state = VescState::VESC_STATE_PONG;
+		break;
 
-			uint8_t crc_high = rxBuf[index++];
-			uint8_t crc_low = rxBuf[index++];
+	case VescCANMsg::CAN_PACKET_POLL_ROTOR_POS: { // decode encoder data
+		int32_t index = 0;
+		float pos = this->buffer_get_int32(rxBuf, &index) / 100000.0; // extract the 0-360 float position
+		this->decodeEncoderPosition(pos);
+		break;
+	}
 
-			if (crc16(buffer_rx, rxbuf_length) == ((uint8_t) crc_high << 8 | (uint8_t) crc_low)) {
-
-				this->decode_buffer(buffer_rx, rxbuf_length);
-
-			}
-
-			break;
-		}
-		case VescCANMsg::CAN_PACKET_PROCESS_SHORT_BUFFER: {
-
-			// remove 2 first byte to exclude "can emitter id" and the "send bool" flag from buffer
-			this->decode_buffer(rxBuf + 2, rxHeader->DLC - 2);
-
-			break;
-		}
-
-		case VescCANMsg::CAN_PACKET_PONG:
-			state = VescState::VESC_STATE_PONG;
-			break;
-
-		case VescCANMsg::CAN_PACKET_POLL_ROTOR_POS : { // decode encoder data
-			int32_t index = 0;
-			float pos = this->buffer_get_int32(rxBuf, &index) / 100000.0; // extract the 0-360 float position
-			this->decodeEncoderPosition(pos);
-			break;
-		}
-
-		default:
-			break;
-		}
+	default:
+		break;
+	}
 
 }
 
@@ -582,7 +656,8 @@ void VescCAN::buffer_append_int32(uint8_t *buffer, int32_t number,
 	buffer[(*index)++] = number;
 }
 
-void VescCAN::buffer_append_uint32(uint8_t* buffer, uint32_t number, int32_t *index) {
+void VescCAN::buffer_append_uint32(uint8_t *buffer, uint32_t number,
+		int32_t *index) {
 	buffer[(*index)++] = number >> 24;
 	buffer[(*index)++] = number >> 16;
 	buffer[(*index)++] = number >> 8;
@@ -590,14 +665,13 @@ void VescCAN::buffer_append_uint32(uint8_t* buffer, uint32_t number, int32_t *in
 }
 
 uint32_t VescCAN::buffer_get_uint32(const uint8_t *buffer, int32_t *index) {
-	uint32_t res =	((uint32_t) buffer[*index]) << 24 |
-					((uint32_t) buffer[*index + 1]) << 16 |
-					((uint32_t) buffer[*index + 2]) << 8 |
-					((uint32_t) buffer[*index + 3]);
+	uint32_t res = ((uint32_t) buffer[*index]) << 24
+			| ((uint32_t) buffer[*index + 1]) << 16
+			| ((uint32_t) buffer[*index + 2]) << 8
+			| ((uint32_t) buffer[*index + 3]);
 	*index += 4;
 	return res;
 }
-
 
 int32_t VescCAN::buffer_get_int32(const uint8_t *buffer, int32_t *index) {
 	int32_t res = ((uint32_t) buffer[*index]) << 24
@@ -609,19 +683,20 @@ int32_t VescCAN::buffer_get_int32(const uint8_t *buffer, int32_t *index) {
 }
 
 int16_t VescCAN::buffer_get_int16(const uint8_t *buffer, int32_t *index) {
-	int16_t res =	((uint16_t) buffer[*index]) << 8 |
-					((uint16_t) buffer[*index + 1]);
+	int16_t res = ((uint16_t) buffer[*index]) << 8
+			| ((uint16_t) buffer[*index + 1]);
 	*index += 2;
 	return res;
 }
 
-
-float VescCAN::buffer_get_float32(const uint8_t *buffer, float scale, int32_t *index) {
-    return (float)buffer_get_int32(buffer, index) / scale;
+float VescCAN::buffer_get_float32(const uint8_t *buffer, float scale,
+		int32_t *index) {
+	return (float) buffer_get_int32(buffer, index) / scale;
 }
 
-float VescCAN::buffer_get_float16(const uint8_t *buffer, float scale, int32_t *index) {
-    return (float)buffer_get_int16(buffer, index) / scale;
+float VescCAN::buffer_get_float16(const uint8_t *buffer, float scale,
+		int32_t *index) {
+	return (float) buffer_get_int16(buffer, index) / scale;
 }
 
 unsigned short VescCAN::crc16(unsigned char *buf, unsigned int len) {

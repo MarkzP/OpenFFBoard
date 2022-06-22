@@ -9,8 +9,6 @@
 #define USBHIDHANDLER_H_
 #include "cppmain.h"
 #include "ffb_defs.h"
-#include "hid_cmd_defs.h"
-
 
 class UsbHidHandler {
 public:
@@ -26,6 +24,7 @@ public:
 	static void setHidDesc(const uint8_t* desc);
 	static const uint8_t* getHidDesc();
 	static uint8_t* hid_desc;
+	void transferComplete(uint8_t itf, uint8_t const* report, uint8_t len){};
 
 };
 

@@ -9,15 +9,36 @@
  */
 
 
-#define SW_VERSION "1.4.4" // Version string
-#define MIN_SW_CONFIGURATOR "1.4.0" // Minimal supported configurator version. to be removed in a later version!
+
+
+static const uint8_t SW_VERSION_INT[3] = {1,8,8}; // Version as array. 8 bit each!
 
 #define MAX_AXIS 2 // ONLY USE 2 for now else screws HID Reports
 
+//#define DEBUGLOG // Uncomment to enable some debug printouts
 
 #ifndef CANBUS
 #undef ODRIVE
+#undef CANBUTTONS
 #undef VESC
+#endif
+
+
+#ifdef FFBWHEEL
+#ifdef FFBWHEEL_USE_1AXIS_DESC
+#define AXIS1_FFB_HID_DESC
+#else
+#define AXIS2_FFB_HID_DESC
+#endif
+#endif
+
+#ifdef FFBJOYSTICK
+#define AXIS2_FFB_HID_DESC
+#endif
+
+
+#ifndef ENCODER_SPI_PORT
+#define ENCODER_SPI_PORT ext3_spi // See cpp_target_config.cpp for ports
 #endif
 
 #endif

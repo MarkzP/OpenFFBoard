@@ -12,27 +12,32 @@
 #include "ffb_defs.h"
 #include "PersistentStorage.h"
 #include "CommandHandler.h"
-#include "HidCommandHandler.h"
 #include <vector>
 //#include "hid_cmd_defs.h"
 
 class Axis;
 struct metric_t;
 
+// default effect gains
 struct effect_gain_t {
 	uint8_t friction = 127;
-	uint8_t spring = 255;
+	uint8_t spring = 64;
 	uint8_t damper = 127;
 	uint8_t inertia = 127;
 };
 
-class EffectsCalculator: public PersistentStorage, public CommandHandler,public HidCommandHandler {
+enum class EffectsCalculator_commands : uint32_t {
+	ffbfiltercf,ffbfiltercf_q,effects,spring,friction,damper,inertia
+};
+
+class EffectsCalculator: public PersistentStorage, public CommandHandler {
 public:
 	EffectsCalculator();
 	virtual ~EffectsCalculator();
 
 	static ClassIdentifier info;
 	const ClassIdentifier getInfo();
+	const ClassType getClassType() override {return ClassType::Internal;};
 
 	void saveFlash();
 	void restoreFlash();
@@ -46,10 +51,11 @@ public:
 	uint8_t getGain();
 	void setCfFilter(uint32_t f,uint8_t q); // Set output filter frequency
 	void logEffectType(uint8_t type);
+	void setDirectionEnableMask(uint8_t mask);
 
-	virtual ParseStatus command(ParsedCommand *cmd, std::string *reply);
-	virtual void processHidCommand(HID_Custom_Data_t* data);
-	virtual std::string getHelpstring() { return "\nEffect commands: effects,ffbfiltercf,ffbfiltercf_q,spring,damper,friction,inertia.\n"; }
+	//virtual ParseStatus command(ParsedCommand_old *cmd, std::string *reply);
+	CommandStatus command(const ParsedCommand& cmd,std::vector<CommandReply>& replies);
+	virtual std::string getHelpstring() { return "Controls internal FFB effects"; }
 
 	void setEffectsArray(FFB_Effect* pEffects);
 	FFB_Effect* effects = nullptr; // ptr to effects array in HidFFB
@@ -57,26 +63,34 @@ public:
 protected:
 
 private:
+	uint8_t directionEnableMask = 0;
 // Filters
 	bool effects_active = false; // was ffb_active
 	uint8_t global_gain = 0xff;
-	float damper_f = 50 , damper_q = 0.2;
-	float friction_f = 50 , friction_q = 0.2;
-	float inertia_f = 20 , inertia_q = 0.2;
+	float damper_f = 30 , damper_q = 0.4;
+	float friction_f = 50 , friction_q = 0.2; //50 0.2
+	float inertia_f = 15 , inertia_q = 0.2;
 	const uint32_t calcfrequency = 1000; // HID frequency 1khz
 	uint32_t cfFilter_f = calcfrequency/2; // 500 = off
-	uint8_t cfFilter_q = 70; // User settable
+	uint8_t cfFilter_q = 70; // User settable. q * 10
 	const float cfFilter_qfloatScaler = 0.01;
+
+	// Rescale factor for conditional effect to boost or decrease the intensity
+	const float spring_scaler = 16.0f;
+	const float friction_scaler = 0.4f;
+	const float damper_scaler = 2.0f;
+	const float inertia_scaler = 200.0f;
+	const int frictionPctSpeedToRampup = 5;										// define the max value of the range (0..5% of maxspeed) where torque is rampup on friction
+	const float speedRampupPct = (frictionPctSpeedToRampup / 100.0) * 32767;	// compute the normalizedSpeed of pctToRampup factor
 
 	effect_gain_t gain;
 
 	uint32_t effects_used = 0;
 
-	int32_t calcComponentForce(FFB_Effect* effect, int32_t forceVector, metric_t* metrics, uint8_t axis, uint8_t axisCount);
+	int32_t calcComponentForce(FFB_Effect *effect, int32_t forceVector, std::vector<std::unique_ptr<Axis>> &axes, uint8_t axis);
 	int32_t calcNonConditionEffectForce(FFB_Effect* effect);
-	int32_t calcConditionEffectForce(FFB_Effect *effect, float metric, uint8_t gain,int32_t pos,
-			uint8_t idx, float scale, float angle_ratio);
-	int32_t applyEnvelope(FFB_Effect *effect, int32_t value);
+	int32_t calcConditionEffectForce(FFB_Effect *effect, float metric, uint8_t gain, uint8_t idx, float scale, float angle_ratio);
+	int32_t getEnvelopeMagnitude(FFB_Effect *effect);
 	std::string listEffectsUsed();
 };
 #endif /* EFFECTSCALCULATOR_H_ */

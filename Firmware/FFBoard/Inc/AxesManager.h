@@ -8,10 +8,8 @@
 #ifndef AXESMANAGER_H_
 #define AXESMANAGER_H_
 #include "Axis.h"
-#include "NormalizedAxis.h"
-#include "PersistentStorage.h"
+//#include "PersistentStorage.h"
 #include "ffb_defs.h"
-#include "hid_cmd_defs.h"
 
 #include "CmdParser.h"
 #include "vector"
@@ -21,7 +19,7 @@
 class EffectsCalculator;
 
 
-class AxesManager : public PersistentStorage
+class AxesManager
 {
 public:
 	AxesManager(volatile Control_t* control);
@@ -30,15 +28,9 @@ public:
 //	static ClassIdentifier info;
 //	const ClassIdentifier getInfo();
 
-//	ParseStatus command(ParsedCommand *cmd, std::string *reply);
-//	void processHidCommand(HID_Custom_Data_t *data);
-	virtual std::string getHelpstring() { return "\nAxis commands: (Get: <axis>.<cmd> , Set: <axis>.<cmd>=<val>\nWhere <axis> = x-z e.g. y.power (omitting <axis>. defaults to the X axis.\n"
-//												 "power,zeroenc,enctype,cpr,pos,degrees,esgain,fxratio,idlespring,spring.friction,damper,inertia,invert,drvtype,tmc.\n"; }
-												 "power,zeroenc,enctype,cpr,pos,degrees,esgain,fxratio,idlespring,friction,invert,drvtype,tmc.\n"; }
-
 	void setEffectsCalculator(EffectsCalculator *ec);
-	void saveFlash();
-	void restoreFlash();
+//	void saveFlash();
+//	void restoreFlash();
 
 	uint8_t getAxisCount();
 	bool setAxisCount(int8_t count);
@@ -52,7 +44,7 @@ public:
 
 	std::vector<int32_t>* getAxisValues();
 
-	void emergencyStop();
+	void emergencyStop(bool reset);
 	void resetPosZero();
 
 private:
@@ -63,7 +55,6 @@ private:
 	uint16_t axis_count = 0;
 	std::vector<std::unique_ptr<Axis>> axes;
 	std::vector<int32_t> axisValues = std::vector<int32_t>(1,0);
-	//	std::vector<NormalizedAxis*> normalizedAxes;
 
 	void deleteAxes();
 };

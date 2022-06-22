@@ -15,10 +15,9 @@
 #include "cmsis_os2.h"
 
 ClassIdentifier MidiMain::info = {
-		 .name = "MIDI" ,
-		 .id=64,
-		 .unique = '0',
-		 .hidden=false //Set false to list
+		 .name = "MIDI (TMC)" ,
+		 .id=CLSID_MAIN_MIDI, // 64 prev
+		 .visibility = ClassVisibility::debug
  };
 
 const ClassIdentifier MidiMain::getInfo(){
@@ -39,29 +38,36 @@ MidiMain::MidiMain(){
 	this->timer_update->Instance->ARR = period;
 	this->timer_update->Instance->PSC = (SystemCoreClock / 1000000)-1;
 	this->timer_update->Instance->CR1 = 1;
-	HAL_TIM_Base_Start_IT(this->timer_update);
+
 
 	// Setup one TMC for first channel
  	this->drv = std::make_unique<TMC_1>();
 	TMC4671Limits limits;
 	drv->setLimits(limits);
-	drv->setAddress(1);
+	drv->setEncoderType(EncoderType_TMC::NONE);
+
 	//drv->setMotorType(MotorType::STEPPER, 50);
 	if(drv->conf.motconf.motor_type == MotorType::NONE){
 		pulseErrLed();
 	}
+	//drv->Start(); // We do not start the driver thread
+
 	drv->setPhiEtype(PhiE::ext);
 	drv->setUdUq(0, 0);
 	drv->allowSlowSPI = false; // Force higher speed
-	drv->initialize();
+	if(!drv->initialize()){
+		pulseErrLed();
+	}
+
 	drv->setPhiEtype(PhiE::ext);
 	drv->setMotionMode(MotionMode::uqudext,true);
 
-	if(!drv->initialized){
-		pulseErrLed();
-	}
-	//this->Start(); // We do not start the driver thread
 
+	//CommandHandler::registerCommands();
+	registerCommand("power", MidiMain_commands::power, "Intensity",CMDFLAG_GET|CMDFLAG_SET);
+	registerCommand("range", MidiMain_commands::range, "Range of phase change",CMDFLAG_GET|CMDFLAG_SET);
+
+	HAL_TIM_Base_Start_IT(this->timer_update);
 }
 
 MidiMain::~MidiMain() {
@@ -70,7 +76,10 @@ MidiMain::~MidiMain() {
 
 
 void MidiMain::update(){
-	osDelay(50); // Slow down main thread
+	osDelay(500); // Slow down main thread
+	if(drv->hasPower() &&!drv->isSetUp()){
+		drv->initializeWithPower();
+	}
 }
 
 void MidiMain::timerElapsed(TIM_HandleTypeDef* htim){
@@ -144,26 +153,23 @@ void MidiMain::pitchBend(uint8_t chan, int16_t val){
 	}
 }
 
-ParseStatus MidiMain::command(ParsedCommand* cmd,std::string* reply){
-	ParseStatus flag = ParseStatus::OK; // Valid command found
-	if(cmd->cmd == "power"){
-		if(cmd->type == CMDtype::get){
-			*reply+=std::to_string(power);
-		}else if(cmd->type == CMDtype::set){
-			this->power = cmd->val;
-		}
-	}else if(cmd->cmd == "range"){
-		if(cmd->type == CMDtype::get){
-			*reply+=std::to_string(movementrange);
-		}else if(cmd->type == CMDtype::set){
-			this->movementrange = cmd->val;
-		}
-	}else{
-		flag=drv->command(cmd, reply);
-	}
-	return flag;
-}
+CommandStatus MidiMain::command(const ParsedCommand& cmd,std::vector<CommandReply>& replies){
+	CommandStatus result = CommandStatus::OK;
+	switch(static_cast<MidiMain_commands>(cmd.cmdId)){
 
+	case MidiMain_commands::power:
+		handleGetSet(cmd, replies, this->power);
+		break;
+	case MidiMain_commands::range:
+		handleGetSet(cmd, replies, this->movementrange);
+		break;
+
+	default:
+		result = CommandStatus::NOT_FOUND;
+		break;
+	}
+	return result;
+}
 
 
 void MidiMain::usbInit(){

@@ -19,30 +19,48 @@
 #include "thread.hpp"
 #include "ExtiHandler.h"
 #include "SPI.h"
+#include "TimerHandler.h"
 
 #include "semaphore.hpp"
 #include "OutputPin.h"
 #include "cpp_target_config.h"
 
 #define SPITIMEOUT 500
-#define TMC_THREAD_MEM 512
+#define TMC_THREAD_MEM 256
 #define TMC_THREAD_PRIO 25 // Must be higher than main thread
-
-#ifndef TMC_CURRENTSCALER
-#define TMC_CURRENTSCALER 0
-#endif
+#define TMC_ADCOFFSETFAIL 5000 // How much offset from 0x7fff to allow before a calibration is failed
 
 extern SPI_HandleTypeDef HSPIDRV;
 
-enum class TMC_ControlState {uninitialized,No_power,Shutdown,Running,Init_wait,ABN_init,AENC_init,Enc_bang,HardError,OverTemp,EncoderFinished};
-enum class ENC_InitState {uninitialized,estimating,aligning,checking,OK};
+#ifdef TIM_TMC
+extern TIM_HandleTypeDef TIM_TMC;
+#endif
+
+enum class TMC_ControlState : uint32_t {uninitialized,waitPower,Shutdown,Running,EncoderInit,EncoderFinished,HardError,OverTemp,IndexSearch,FullCalibration,ExternalEncoderInit};
+
+enum class TMC_PwmMode : uint8_t {off = 0,HSlow_LShigh = 1, HShigh_LSlow = 2, res2 = 3, res3 = 4, PWM_LS = 5, PWM_HS = 6, PWM_FOC = 7};
+
+enum class TMC_StartupType{NONE,coldStart,warmStart};
 
 enum class MotorType : uint8_t {NONE=0,DC=1,STEPPER=2,BLDC=3,ERR};
-enum class PhiE : uint8_t {ext=1,openloop=2,abn=3,hall=5,aenc=6,aencE=7,NONE};
+enum class PhiE : uint8_t {ext=1,openloop=2,abn=3,hall=5,aenc=6,aencE=7,NONE,extEncoder};
 enum class MotionMode : uint8_t {stop=0,torque=1,velocity=2,position=3,prbsflux=4,prbstorque=5,prbsvelocity=6,uqudext=8,encminimove=9,NONE};
 enum class FFMode : uint8_t {none=0,velocity=1,torque=2};
 enum class PosSelection : uint8_t {PhiE=0, PhiE_ext=1, PhiE_openloop=2, PhiE_abn=3, res1=4, PhiE_hal=5, PhiE_aenc=6, PhiA_aenc=7, res2=8, PhiM_abn=9, PhiM_abn2=10, PhiM_aenc=11, PhiM_hal=12};
+enum class VelSelection : uint8_t {PhiE=0, PhiE_ext=1, PhiE_openloop=2, PhiE_abn=3, res1=4, PhiE_hal=5, PhiE_aenc=6, PhiA_aenc=7, res2=8, PhiM_abn=9, PhiM_abn2=10, PhiM_aenc=11, PhiM_hal=12};
 enum class EncoderType_TMC : uint8_t {NONE=0,abn=1,sincos=2,uvw=3,hall=4,ext=5}; // max 7
+
+// Hardware versions for identifying different types
+enum class TMC_HW_Ver : uint8_t {NONE=0,v1_0,v1_2,v1_2_2,v1_2_2_LEM20,v1_2_2_TMCS};
+// Selectable version names to be listed in commands
+const std::vector<std::pair<TMC_HW_Ver,std::string>> tmcHwVersionNames{
+			std::make_pair(TMC_HW_Ver::NONE,"Undefined"), // Do not select. Default but disables some safety features
+			std::make_pair(TMC_HW_Ver::v1_0,"v1.0 AD8417"),
+			std::make_pair(TMC_HW_Ver::v1_2,"v1.2 AD8417"),
+			std::make_pair(TMC_HW_Ver::v1_2_2,"v1.2.2 LEM GO 10"),
+			std::make_pair(TMC_HW_Ver::v1_2_2_LEM20,"v1.2.2 LEM GO 20"),
+			std::make_pair(TMC_HW_Ver::v1_2_2_TMCS,"v1.2.2 TMCS1100A2")
+};
 
 struct TMC4671MotConf{
 	MotorType motor_type = MotorType::NONE; //saved
@@ -50,16 +68,28 @@ struct TMC4671MotConf{
 	PhiE phiEsource 	= PhiE::ext;
 	uint16_t pole_pairs = 4; //saved
 	PosSelection pos_sel = PosSelection::PhiE;
+	VelSelection vel_sel = VelSelection::PhiE;
 };
 
+/**
+ * Settings that depend on the hardware version
+ */
+struct TMC4671HardwareTypeConf{
+	TMC_HW_Ver hwVersion = TMC_HW_Ver::NONE;
+	int adcOffset = 0;
+	float thermistor_R2 = 1500;
+	float thermistor_R = 22000;
+	float thermistor_Beta = 4300;
+	bool temperatureEnabled = false; // Enables temperature readings
+	float temp_limit = 90;
+	float currentScaler = 2.5 / (0x7fff * 60.0 * 0.0015); // Converts from adc counts to current in Amps
+	uint16_t brakeLimLow = 50700;
+	uint16_t brakeLimHigh = 50900;
+	float vmScaler = (2.5 / 0x7fff) * ((1.5+71.5)/1.5);
+	float vSenseMult = VOLTAGE_MULT_DEFAULT;
+	// Todo restrict allowed motor and encoder types
+};
 
-//#define TMCTEMP
-
-const int thermistor_R2 = 1500, tmcOffset = 1000; //400? Offset is how many ADC counts too high does the tmc read due to current flowing from the ADC. Can be calculated by measuring the pin voltage with adc on and off.
-
-// Beta-Model
-const float thermistor_Beta = 4300, thermistor_R = 22000;
-const float temp_limit = 100; //°C
 
 // Mapping of bits in status flag register and mask
 union StatusFlags {
@@ -104,31 +134,36 @@ union StatusFlags {
 
 // Basic failsafe hardware boot config for inits
 struct TMC4671MainConfig{
-
+	TMC4671HardwareTypeConf hwconf;
 	TMC4671MotConf motconf;
-	uint16_t pwmcnt = 3999;
-	uint8_t bbmL	= 10;
-	uint8_t bbmH	= 10;
-	uint16_t mdecA 	= 668; // 334 default. 668 for lower noise
-	uint16_t mdecB 	= 668;
-	uint32_t mclkA	= 0x20000000; //0x20000000 default
-	uint32_t mclkB	= 0x20000000; // For AENC
-	uint32_t adc_I0_offset 	= 33415;
-	uint32_t adc_I1_offset 	= 33415;
-	uint32_t adc_I0_scale	= 256;
-	uint32_t adc_I1_scale	= 256;
+	uint16_t pwmcnt 		= 3999;
+	uint8_t bbmL			= 10;
+	uint8_t bbmH			= 10;
+	uint16_t mdecA 			= 660; // 334 default. 331 recommended by datasheet,662 double. 660 lowest noise
+	uint16_t mdecB 			= 334; // Encoder ADC faster rate
+	uint32_t mclkA			= 0x20000000; //0x20000000 default
+	uint32_t mclkB			= 0x20000000; // For AENC
+	uint16_t adc_I0_offset 	= 33415;
+	uint16_t adc_I1_offset 	= 33415;
+	uint16_t adc_I0_scale	= 256;
+	uint16_t adc_I1_scale	= 256;
+	bool svpwm				= true; // enable space vector PWM for 3 phase motors
+	bool canChangeHwType 	= true; // Allows changing the hardware version by commands
+	bool encoderReversed	= false;
+	bool combineEncoder		= false;
+	bool invertForce		= false;
 };
 
 struct TMC4671PIDConf{
 	uint16_t fluxI		= 512;
-	uint16_t fluxP		= 128;
+	uint16_t fluxP		= 512;
 	uint16_t torqueI	= 512;
-	uint16_t torqueP	= 128;
+	uint16_t torqueP	= 512;
 	uint16_t velocityI	= 0;
 	uint16_t velocityP	= 256;
 	uint16_t positionI	= 0;
 	uint16_t positionP	= 128;
-	bool sequentialPI	= false; // Advanced pid
+	bool sequentialPI	= true; // Advanced pid
 };
 
 struct TMC4671Limits{
@@ -159,19 +194,25 @@ struct TMC4671FlashAddrs{
 	uint16_t torque_i = ADR_TMC1_TORQUE_I;
 	uint16_t flux_p = ADR_TMC1_FLUX_P;
 	uint16_t flux_i = ADR_TMC1_FLUX_I;
+	uint16_t ADC_i0_ofs = ADR_TMC1_ADC_I0_OFS;
+	uint16_t ADC_i1_ofs = ADR_TMC1_ADC_I1_OFS;
+	uint16_t encOffset = ADR_TMC1_ENC_OFFSET;
+	uint16_t phieOffset = ADR_TMC1_PHIE_OFS;
 };
 
 struct TMC4671ABNConf{
-	uint32_t cpr = 8192;
+	uint32_t cpr = 10000;
 	bool apol 	= true;
 	bool bpol 	= true;
 	bool npol	= true;
-	bool npos 	= false;
 	bool rdir 	= false;
 	bool ab_as_n = false;
-	bool latch_on_N = false; // Latch offsets on n pulse
-	int16_t phiEoffset = 0;
+	bool latch_on_N = false; // Restore ABN_DECODER_COUNT_N into encoder count if true on pulse. otherwise store encoder count in ABN_DECODER_COUNT_N
+	int16_t phiEoffset = 0;	// Depends on phiM!
 	int16_t phiMoffset = 0;
+	int16_t posOffsetFromIndex = 0; // offset position to load after homing
+	bool useIndex = false;
+
 };
 
 struct TMC4671AENCConf{
@@ -197,6 +238,7 @@ struct TMC4671AENCConf{
 };
 
 struct TMC4671HALLConf{
+	bool hallEnabled = false;
 	bool polarity = true;
 	bool interpolation = true;
 	bool direction = false;
@@ -223,26 +265,39 @@ struct TMC4671Biquad{
 };
 
 
-class TMC4671 : public MotorDriver, public PersistentStorage, public Encoder, public CommandHandler, public SPIDevice, public ExtiHandler, public cpp_freertos::Thread{
+
+class TMC4671 :
+		public MotorDriver, public PersistentStorage, public Encoder,
+		public CommandHandler, public SPIDevice, public ExtiHandler, public cpp_freertos::Thread,
+#ifdef TIM_TMC
+		public TimerHandler
+#endif
+{
+
+	enum class TMC4671_commands : uint32_t{
+		cpr,mtype,encsrc,tmcHwType,encalign,poles,acttrq,pwmlim,
+		torqueP,torqueI,fluxP,fluxI,velocityP,velocityI,posP,posI,
+		tmctype,pidPrec,phiesrc,fluxoffset,seqpi,tmcIscale,encdir,temp,reg,
+		svpwm,fullCalibration,calibrated,abnindexenabled,findIndex,getState,encpol,combineEncoder,invertForce,vmTmc,
+		extphie
+	};
+
 public:
 
 	static ClassIdentifier info;
 	const ClassIdentifier getInfo();
+	const ClassType getClassType() override {return ClassType::Motordriver;};
 
 	static TMC4671MotConf decodeMotFromInt(uint16_t val);
 	static uint16_t encodeMotToInt(TMC4671MotConf mconf);
 
-//	static uint8_t checkSpiAddrNotInUse(uint8_t requestedChannel);
-//	void recordSpiAddrUsed(uint8_t chan);
-//	static uint8_t getSpiAddrInUseForAxis(char axis);
 
-	//SPI_HandleTypeDef* spi = &HSPIDRV,GPIO_TypeDef* csport=SPI1_SS1_GPIO_Port,uint16_t cspin=SPI1_SS1_Pin
-	//TMC4671(SPI_HandleTypeDef* spi,GPIO_TypeDef* csport,uint16_t cspin,TMC4671MainConfig conf);
 	TMC4671(SPIPort& spiport,OutputPin cspin = OutputPin(*SPI1_SS1_GPIO_Port, SPI1_SS1_Pin),uint8_t address=1);
 
+	void setHwType(TMC_HW_Ver type);
+
 	void setAddress(uint8_t address);
-	void setAxis(char axis);
-	uint8_t getAxis();
+
 	uint8_t getSpiAddr();
 	bool setSpiAddr(uint8_t chan);
 	virtual ~TMC4671();
@@ -250,15 +305,18 @@ public:
 	TMC4671MainConfig conf;
 
 	bool initialize();
-	bool initialized = false;
+	void initializeWithPower();
+
 	void Run();
 	bool motorReady();
 
 	bool hasPower();
+	int32_t getTmcVM();
 	bool isSetUp();
 
 	uint32_t readReg(uint8_t reg);
 	void writeReg(uint8_t reg,uint32_t dat);
+	void writeRegDMA(uint8_t reg,uint32_t dat);
 	void updateReg(uint8_t reg,uint32_t dat,uint32_t mask,uint8_t shift);
 	//void SpiTxCplt(SPI_HandleTypeDef *hspi);
 
@@ -274,8 +332,10 @@ public:
 	void setup_HALL(TMC4671HALLConf hallconf);
 	void bangInitEnc(int16_t power);
 	void estimateABNparams();
+	void estimateExtEnc();
 	bool checkEncoder();
 	void calibrateAenc();
+	void calibrateEncoder();
 
 	void setEncoderType(EncoderType_TMC type);
 	uint32_t getEncCpr();
@@ -287,32 +347,41 @@ public:
 	void setupFeedForwardVelocity(int32_t gain, int32_t constant);
 	void setFFMode(FFMode mode);
 	void setSequentialPI(bool sequential);
-	bool feedforward = false;
 
 	void setBiquadFlux(TMC4671Biquad bq);
 	void setBiquadTorque(TMC4671Biquad bq);
 	void setBiquadPos(TMC4671Biquad bq);
 	void setBiquadVel(TMC4671Biquad bq);
 	
-	bool pingDriver();
-	std::string getTmcType();
 
-	void changeState(TMC_ControlState newState);
+	bool pingDriver();
+	std::pair<uint32_t,std::string> getTmcType();
+
+	void changeState(TMC_ControlState newState,bool force = false);
+
+	bool externalEncoderAllowed();
+	void setExternalEncoderAllowed(bool allow);
+
+	bool isCalibrated();
+
+
+
+#ifdef TIM_TMC
+	void timerElapsed(TIM_HandleTypeDef* htim);
+#endif
 
 	void setPositionExt(int32_t pos); // External position register (For external encoders. Choose external phiE).
 
 	void stopMotor();
 	void startMotor();
-	bool active = false;
-	void emergencyStop();
+
+	void emergencyStop(bool reset);
 	bool emergency = false;
 	bool estopTriggered = false;
 	void turn(int16_t power);
 	int16_t nextFlux = 0;
 	int16_t idleFlux = 0;
 	uint16_t maxOffsetFlux = 0;
-
-	bool useSvPwm = true;
 
 	int16_t bangInitPower = 5000; // Default current in setup routines
 
@@ -328,7 +397,9 @@ public:
 	int16_t getFlux();
 	void setFluxTorque(int16_t flux, int16_t torque);
 	void setFluxTorqueFF(int16_t flux, int16_t torque);
-	std::pair<int32_t,int32_t> getActualCurrent();
+	std::pair<int32_t,int32_t> getActualTorqueFlux();
+
+	bool checkAdc();
 
 	float getTemp();
 	TMC_ControlState getState();
@@ -336,8 +407,13 @@ public:
 	void setPhiEtype(PhiE type);
 	PhiE getPhiEtype();
 	void setPhiE_ext(int16_t phiE);
+	int16_t getPhiE();
+	int16_t getPhiEfromExternalEncoder();
+	int16_t getPhiE_Enc();
+
 
 	void setPosSel(PosSelection psel);
+	void setVelSel(VelSelection vsel,uint8_t mode = 0);
 
 	void setMotionMode(MotionMode mode,bool force = false); // force true sets it immediately. use false to change mode when tmc is ready on startMotor
 	MotionMode getMotionMode();
@@ -368,9 +444,13 @@ public:
 
 	//Encoder
 	Encoder* getEncoder() override;
+	void setEncoder(std::shared_ptr<Encoder>& encoder) override;
 	bool hasIntegratedEncoder() override;
+	inline bool usingExternalEncoder(){return conf.motconf.enctype == EncoderType_TMC::ext && drvEncoder != nullptr && drvEncoder->getType() != EncoderType::NONE;}
 	int32_t getPos() override;
+	int32_t getPosAbs() override;
 	void setPos(int32_t pos) override;
+	void setTmcPos(int32_t pos);
 	//uint32_t getPosCpr();
 	uint32_t getCpr();
 	void setCpr(uint32_t cpr);
@@ -379,14 +459,18 @@ public:
 	uint32_t encToPos(uint32_t enc);
 
 	void exti(uint16_t GPIO_Pin);
-	void encoderIndexHit();
+
+
+	bool findEncoderIndex(int32_t speed=10, uint16_t power=2500,bool offsetPhiM=false,bool zeroCount=false);
+	bool autohome();
+	void zeroAbnUsingPhiM(bool offsetPhiE=false);
 
 	StatusFlags readFlags(bool maskedOnly = true);
 	void setStatusMask(StatusFlags mask);
 	void setStatusMask(uint32_t mask); // Mask for status pin.
 	void setStatusFlags(uint32_t flags);
 	void setStatusFlags(StatusFlags flags);
-	void setEncoderIndexFlagEnabled(bool enabled);
+	void setEncoderIndexFlagEnabled(bool enabled,bool zeroEncoder = false);
 	void statusCheck();
 	bool flagCheckInProgress = false;
 	StatusFlags statusFlags = {0};
@@ -405,55 +489,100 @@ public:
 	void endSpiTransfer(SPIPort* port);
 	//void spiTxCompleted(SPIPort* port);
 
-	ParseStatus command(ParsedCommand* cmd,std::string* reply);
-	virtual std::string getHelpstring(){
-		return "\nTMC4671 commands:\n"
-				"tmctype,mtype,encsrc,encalign,poles,phiesrc,reg,fluxoffset\n"
-				"torqueP,torqueI,fluxP,fluxI,velocityP,velocityI,posP,posI,pidPrec\n"
-				"acttrq,seqpi,tmctemp,tmcIscale\n";}
+	CommandStatus command(const ParsedCommand& cmd,std::vector<CommandReply>& replies);
+	void registerCommands();
 
+	virtual std::string getHelpstring(){return "TMC4671 interface";}
+
+protected:
+	class TMC_ExternalEncoderUpdateThread : public cpp_freertos::Thread{
+	public:
+		TMC_ExternalEncoderUpdateThread(TMC4671* tmc);
+		//~TMC_ExternalEncoderUpdateThread();
+		void Run();
+		void updateFromIsr();
+
+	private:
+		TMC4671* tmc;
+	};
 
 private:
 	OutputPin enablePin = OutputPin(*DRV_ENABLE_GPIO_Port,DRV_ENABLE_Pin);
+	const Error indexNotHitError = Error(ErrorCode::encoderIndexMissed,ErrorType::critical,"Encoder index missed");
+	const Error lowVoltageError = Error(ErrorCode::undervoltage,ErrorType::warning,"Low motor voltage");
+	const Error communicationError = Error(ErrorCode::tmcCommunicationError, ErrorType::warning, "TMC not responding");
+	const Error estopError = Error(ErrorCode::emergencyStop, ErrorType::critical, "TMC emergency stop triggered");
 
-
-	Error lowVoltageError = Error(ErrorCode::undervoltage,ErrorType::warning,"Low motor voltage");
-	ENC_InitState encstate = ENC_InitState::uninitialized;
 	TMC_ControlState state = TMC_ControlState::uninitialized;
 	TMC_ControlState laststate = TMC_ControlState::uninitialized;
-	TMC_ControlState laststateNopower;
+	TMC_ControlState requestedState = TMC_ControlState::Shutdown;
 	MotionMode curMotionMode = MotionMode::stop;
 	MotionMode lastMotionMode = MotionMode::stop;
 	MotionMode nextMotionMode = MotionMode::stop;
-	bool oldTMCdetected = false; // ES versions should not exist anymore
+
+	TMC_StartupType startupType = TMC_StartupType::NONE;
+
+	bool ES_TMCdetected = false; // ES versions are not made anymore and have some critical issues
+
+	bool encoderAligned = false;
+	//bool encoderIndexFound = false;
+	bool initialized = false; // Init ran once
+	bool powerInitialized = false;
+	bool adcCalibrated = false;
+	bool adcSettingsStored = false;
+	bool motorEnabledRequested = false;
+	volatile bool encoderIndexHitFlag = false;
+	bool zeroEncoderOnIndexHit = false;
+	bool fullCalibrationInProgress = false;
+	bool phiErestored = false;
+	bool encHallRestored = false;
+	//int32_t phiEOffsetRestored = 0; //-0x8000 to 0x7fff
+	uint8_t calibrationFailCount = 2;
+
+	int16_t externalEncoderPhieOffset = 0; // PhiE offset for external encoders
+	bool allowExternalEncoder = false;
+
+	bool allowStateChange = false;
+	bool recalibrationRequired = false;
 
 	uint8_t enc_retry = 0;
-	uint8_t enc_retry_max = 5;
+	uint8_t enc_retry_max = 3;
 
 	uint32_t lastStatTime = 0;
-
-	const float currentScaler = TMC_CURRENTSCALER; // read only current scaler for current readouts
-
-	char axis = 'X';
 
 	uint8_t spi_buf[5] = {0};
 
 	void initAdc(uint16_t mdecA, uint16_t mdecB,uint32_t mclkA,uint32_t mclkB);
 	void setPwm(uint8_t val,uint16_t maxcnt,uint8_t bbmL,uint8_t bbmH);// 100MHz/maxcnt+1
-	void setPwm(uint8_t val);// 100MHz/maxcnt+1
+	void setPwm(TMC_PwmMode val);// pwm mode
 	void setSvPwm(bool enable);
 	void encInit();
+	void encoderIndexHit();
+	void saveAdcParams();
+	void calibFailCb();
 
 
 // state machine
-	void ABN_init();
-	void AENC_init();
+//	void ABN_init();
+//	void AENC_init();
+
+	void encoderInit();
 
 	uint32_t initTime = 0;
 	bool manualEncAlign = false;
 	bool spiActive = false; // Flag for tx interrupt that the transfer was started by this instance
 
+	// External encoder timer fires interrupts to trigger a new commutation position update
+#ifdef TIM_TMC
+
+	TIM_HandleTypeDef* externalEncoderTimer = &TIM_TMC;
+	std::unique_ptr<TMC_ExternalEncoderUpdateThread> extEncUpdater = nullptr;
+#else
+	TIM_HandleTypeDef* externalEncoderTimer = nullptr;
+#endif
+	void setUpExtEncTimer();
 };
+
 
 
 class TMC_1 : public TMC4671 {
@@ -475,3 +604,5 @@ public:
 };
 
 #endif /* TMC4671_H_ */
+
+
