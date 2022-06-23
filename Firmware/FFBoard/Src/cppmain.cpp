@@ -5,16 +5,9 @@
 #include "global_callbacks.h"
 #include "cpp_target_config.h"
 #include "cmsis_os.h"
-#ifdef STM32H743xx
-#include "stm32h7xx_hal_flash.h"
-#else
 #include "stm32f4xx_hal_flash.h"
-#endif
-#include "RessourceManager.h"
 
 #include "tusb.h"
-
-#include "FFBWheel.h"
 
 uint32_t clkmhz = HAL_RCC_GetHCLKFreq() / 100000;
 extern TIM_HandleTypeDef TIM_MICROS;
@@ -28,7 +21,7 @@ bool mainclassChosen = false;
 
 uint16_t main_id = 1;
 
-FFBoardMain* mainclass;// __attribute__((section (".ccmram")));
+FFBoardMain* mainclass __attribute__((section (".ccmram")));
 ClassChooser<FFBoardMain> mainchooser(class_registry);
 
 
@@ -36,19 +29,41 @@ ClassChooser<FFBoardMain> mainchooser(class_registry);
 StackType_t  usb_device_stack[USBD_STACK_SIZE];
 StaticTask_t usb_device_taskdef;
 
-RessourceManager ressourceManager = RessourceManager();
 
 void cppmain() {
+#ifdef FW_DEVID
+	if(HAL_GetDEVID() != FW_DEVID){
+		/**
+		 * Firmware is not intended for this chip!
+		 * This can be caused by accidentially flashing an incorrect firmware file and likely screws up clock and pin configs
+		 * Do not proceed.
+		 */
+		while(true){ // Block forever to prevent an incorrect firmware from damaging hardware
+			Error_Handler();
+		}
+	}
+#endif
+
 	// Flash init
+	// TODO verify why or if flash does not erase or initialize correctly on some new chips
 	HAL_FLASH_Unlock();
-	__HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_PGSERR);
+	__HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_PGPERR | FLASH_FLAG_PGSERR | FLASH_FLAG_BSY);
+
 	if( EE_Init() != EE_OK){
 		Error_Handler();
 	}
-
-	EE_Format();
-
+	// Check if flash is initialized
+	uint16_t lastVersion = 0;
+	if(!Flash_Read(ADR_SW_VERSION, &lastVersion)){ // Version never written
+		Flash_Write(ADR_SW_VERSION, (SW_VERSION_INT[0]<<8) | SW_VERSION_INT[1]);
+	}
+	Flash_Read(ADR_SW_VERSION,&lastVersion);
+	if((lastVersion & 0xff00) != (SW_VERSION_INT[0]<<8)){
+		EE_Format(); // Major version changed or could not write initial value. force a format
+		Flash_Write(ADR_SW_VERSION, (SW_VERSION_INT[0]<<8) | SW_VERSION_INT[1]);
+	}
 	HAL_FLASH_Lock();
+	// ------------------------
 
 	TIM_MICROS.Instance->CR1 = 1; // Enable microsecond clock
 
@@ -104,4 +119,7 @@ void free(void *p)
     vPortFree(p);
 }
 
+unsigned long getRunTimeCounterValue(void){
+	return micros();
+}
 

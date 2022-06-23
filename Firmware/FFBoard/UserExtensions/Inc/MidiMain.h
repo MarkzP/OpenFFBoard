@@ -8,6 +8,7 @@
 // TODO rewrite for tinyusb!
 #ifndef MidiMAIN_H_
 #define MidiMAIN_H_
+#include "target_constants.h"
 #ifdef MIDI
 #include <FFBoardMain.h>
 #include "cppmain.h"
@@ -26,6 +27,11 @@ struct MidiNote{
 };
 
 class MidiMain: public FFBoardMain, public MidiHandler,TimerHandler {
+
+	enum class MidiMain_commands : uint32_t{
+		power,range
+	};
+
 public:
 	MidiMain();
 	virtual ~MidiMain();
@@ -35,7 +41,7 @@ public:
 	static ClassIdentifier info;
 	const ClassIdentifier getInfo();
 	static bool isCreatable() {return true;};
-	ParseStatus command(ParsedCommand* cmd,std::string* reply);
+	CommandStatus command(const ParsedCommand& cmd,std::vector<CommandReply>& replies);
 	void usbInit();
 	void update();
 
@@ -58,7 +64,7 @@ private:
 	float noteToFreq[128] = {0};
 	std::vector<MidiNote> notes[16];
 	bool active[16] = {false};
-	uint32_t power = 4000;
+	uint32_t power = 2500;
 
 	const uint16_t period = 100;//71;	// Microseconds
 	float periodf = period / 1000000.0; // seconds

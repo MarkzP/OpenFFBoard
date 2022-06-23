@@ -8,15 +8,16 @@
 #ifndef SPIBUTTONS_H_
 #define SPIBUTTONS_H_
 
+#include "CommandHandler.h"
 #include <ButtonSource.h>
 #include "cppmain.h"
 #include "ChoosableClass.h"
-#include "CommandHandler.h"
+
 #include "SPI.h"
 #include "cpp_target_config.h"
 
 // Set this to 64, 128 or 256 to slow down SPI if unstable.
-#define SPIBUTTONS_SPEED SPI_BAUDRATEPRESCALER_64
+#define SPIBUTTONS_SPEED SPI_BAUDRATEPRESCALER_32
 
 enum class SPI_BtnMode : uint8_t {TM=0,PISOSR=1};
 
@@ -31,6 +32,11 @@ struct ButtonSourceConfig{
 
 
 class SPI_Buttons: public ButtonSource,public CommandHandler,public SPIDevice {
+
+	enum class SPIButtons_commands : uint32_t {
+		mode,btncut,btnpol,btnnum,cs
+	};
+
 public:
 	const std::vector<std::string> mode_names = {"Thrustmaster/HEF4021BT","Shift register (74HC165)"};
 
@@ -38,18 +44,19 @@ public:
 
 	uint8_t readButtons(uint64_t* buf);
 
-	ParseStatus command(ParsedCommand* cmd,std::string* reply);
-	virtual std::string getHelpstring(){return "SPI Button (#=id): #.spi_btn_mode,#.spi_btncut,#.spi_btnpol,#.spi_btnnum\n";}
+	CommandStatus command(const ParsedCommand& cmd,std::vector<CommandReply>& replies) override;
+	void registerCommands();
+	virtual std::string getHelpstring(){return "SPI 2 Button";}
 
 	void saveFlash();
 	void restoreFlash();
 
 	const uint8_t maxButtons = 64;
-	void printModes(std::string* reply);
+	std::string printModes();
 
 	void setMode(SPI_BtnMode mode);
 	void initSPI();
-
+	const ClassType getClassType() override {return ClassType::Buttonsource;};
 
 protected:
 	SPI_Buttons(uint16_t configuration_address, uint16_t configuration_address_2);
@@ -73,17 +80,22 @@ private:
 class SPI_Buttons_1 : public SPI_Buttons {
 public:
 	SPI_Buttons_1()
-		: SPI_Buttons{ADR_SPI_BTN_1_CONF, ADR_SPI_BTN_1_CONF_2} {}
+		: SPI_Buttons{ADR_SPI_BTN_1_CONF, ADR_SPI_BTN_1_CONF_2} {
+			setInstance(0);
+		}
 
 	const ClassIdentifier getInfo() override;
 	static ClassIdentifier info;
 	static bool isCreatable();
+	static bool exists;
 };
 
 class SPI_Buttons_2 : public SPI_Buttons {
 public:
 	SPI_Buttons_2()
-		: SPI_Buttons{ADR_SPI_BTN_2_CONF, ADR_SPI_BTN_2_CONF_2} {}
+		: SPI_Buttons{ADR_SPI_BTN_2_CONF, ADR_SPI_BTN_2_CONF_2} {
+			setInstance(1);
+		}
 
 	const ClassIdentifier getInfo() override;
 	static ClassIdentifier info;

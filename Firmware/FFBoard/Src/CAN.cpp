@@ -10,9 +10,51 @@
 #include "CAN.h"
 
 
-CANPort::CANPort(CAN_HandleTypeDef &hcan) : hcan(&hcan) {
+ClassIdentifier CANPort::info = {
+	.name = "Can port",
+	.id = CLSID_CANPORT,
+	.visibility = ClassVisibility::visible};
+
+
+CANPort::CANPort(CAN_HandleTypeDef &hcan) : CommandHandler("can", CLSID_CANPORT, 0), hcan(&hcan), silentPin(nullptr) {
 	//HAL_CAN_Start(this->hcan);
+	restoreFlash();
+#ifdef CAN_COMMANDS_DISABLED_IF_NOT_USED
+	this->setCommandsEnabled(false);
+#endif
+	registerCommands();
 }
+CANPort::CANPort(CAN_HandleTypeDef &hcan,const OutputPin* silentPin) : CommandHandler("can", CLSID_CANPORT, 0), hcan(&hcan), silentPin(silentPin) {
+	//HAL_CAN_Start(this->hcan);
+	restoreFlash();
+	registerCommands();
+}
+
+void CANPort::registerCommands(){
+	CommandHandler::registerCommands();
+	registerCommand("speed", CanPort_commands::speed, "CAN speed preset (0:50k;1:100k;2:125k;3:250k;4:500k;5:1M)", CMDFLAG_GET|CMDFLAG_SET|CMDFLAG_INFOSTRING);
+	registerCommand("send", CanPort_commands::send, "Send CAN frame. Adr&Value required", CMDFLAG_SETADR);
+	registerCommand("len", CanPort_commands::len, "Set length of next frames", CMDFLAG_SET|CMDFLAG_GET);
+}
+
+void CANPort::saveFlash(){
+	if(this->getCommandHandlerInfo()->instance != 0){
+		return; // Only first instance can save
+	}
+	uint16_t data = (this->speedPreset & 0b111); // set the baudrate in 0..2 bit
+	Flash_Write(ADR_CANCONF1, data);
+}
+
+void CANPort::restoreFlash(){
+	if(this->getCommandHandlerInfo()->instance != 0){
+		return; // Only first instance can save
+	}
+	uint16_t data;
+	if(Flash_Read(ADR_CANCONF1, &data)){
+		setSpeedPreset(data & 0b111);
+	}
+}
+
 
 CANPort::~CANPort() {
 	// removes all filters
@@ -22,6 +64,58 @@ CANPort::~CANPort() {
 	}
 	canFilters.clear();
 	HAL_CAN_Stop(this->hcan);
+	if(silentPin){
+		silentPin->set(); // set pin high to disable
+	}
+}
+
+/**
+ * Signals that this port is being used.
+ * Increments the user counter
+ */
+void CANPort::takePort(){
+	if(portUsers++ == 0){
+		start();
+	}
+}
+
+/**
+ * Signals that the port is not needed anymore.
+ * Decrements the user counter
+ */
+void CANPort::freePort(){
+	if(portUsers>0){
+		portUsers--;
+	}
+
+	if(portUsers == 0){
+		stop();
+	}
+}
+
+/**
+ * Enables the can port
+ */
+bool CANPort::start(){
+	setSilentMode(false);
+	active = true;
+#ifdef CAN_COMMANDS_DISABLED_IF_NOT_USED
+	this->setCommandsEnabled(true);
+#endif
+	setSpeedPreset(this->speedPreset); // Set preset again for a safe state
+	return HAL_CAN_Start(this->hcan) == HAL_OK;
+}
+
+/**
+ * Disables the can port
+ */
+bool CANPort::stop(){
+	setSilentMode(true);
+	active = false;
+#ifdef CAN_COMMANDS_DISABLED_IF_NOT_USED
+	this->setCommandsEnabled(false);
+#endif
+	return HAL_CAN_Start(this->hcan) == HAL_OK;
 }
 
 
@@ -104,7 +198,7 @@ uint32_t CANPort::presetToSpeed(uint8_t preset){
  * Changes the speed of the CAN port to a preset
  */
 void CANPort::setSpeedPreset(uint8_t preset){
-	if(preset > 5 || preset == this->speedPreset)
+	if(preset > 5)
 		return;
 	speedPreset = preset;
 
@@ -134,7 +228,7 @@ void CANPort::takeSemaphore(){
 		this->semaphore.TakeFromISR(&taskWoken);
 	else
 		this->semaphore.Take();
-	isTakenFlag = true;
+	//isTakenFlag = true;
 	portYIELD_FROM_ISR(taskWoken);
 }
 
@@ -145,20 +239,39 @@ void CANPort::giveSemaphore(){
 		this->semaphore.GiveFromISR(&taskWoken);
 	else
 		this->semaphore.Give();
-	isTakenFlag = false;
+	//isTakenFlag = false;
 	portYIELD_FROM_ISR(taskWoken);
 }
 
-bool CANPort::sendMessage(CAN_tx_msg msg){
+/**
+ * Sets the can port passive if a transceiver with silent mode is available
+ */
+void CANPort::setSilentMode(bool silent){
+	this->silent = silent;
+	if(silentPin){
+		silentPin->write(silent);
+	}
+}
+
+/**
+ * Transmits a CAN frame on this port
+ * Wraps the internal transmit function
+ */
+bool CANPort::sendMessage(CAN_tx_msg& msg){
 	return this->sendMessage(&msg.header,msg.data,&this->txMailbox);
 }
 
+/**
+ * Transmits a CAN frame with separate data and header settings
+ */
 bool CANPort::sendMessage(CAN_TxHeaderTypeDef *pHeader, uint8_t aData[],uint32_t *pTxMailbox){
+	if(this->silent)
+		setSilentMode(false);
 	if(pTxMailbox == nullptr){
 		pTxMailbox = &this->txMailbox;
 	}
 	takeSemaphore();
-	this->isTakenFlag = true;
+	//this->isTakenFlag = true;
 	if (HAL_CAN_AddTxMessage(this->hcan, pHeader, aData, pTxMailbox) != HAL_OK)
 	{
 	  /* Transmission request Error */
@@ -215,4 +328,48 @@ void CANPort::removeCanFilter(uint8_t filterId){
 	}
 	semaphore.Give();
 }
+
+
+CommandStatus CANPort::command(const ParsedCommand& cmd,std::vector<CommandReply>& replies){
+
+	switch(static_cast<CanPort_commands>(cmd.cmdId)){
+
+	case CanPort_commands::speed:
+		if(cmd.type == CMDtype::get){
+			replies.emplace_back(this->speedPreset);
+		}else if(cmd.type == CMDtype::set){
+			setSpeedPreset(cmd.val);
+		}else if(cmd.type == CMDtype::info){
+			for(uint8_t i = 0; i<SpeedNames.size();i++){
+				replies.emplace_back(SpeedNames[i]  + ":" + std::to_string(i));
+			}
+		}
+	break;
+
+	case CanPort_commands::send:
+	{
+		if(cmd.type == CMDtype::setat){
+			if(!active){
+				start(); // If port is not used activate port at first use
+			}
+			CAN_tx_msg msg;
+			memcpy(msg.data,&cmd.val,8);
+			header.StdId = cmd.adr;
+			msg.header = header;
+			sendMessage(msg);
+		}else{
+			return CommandStatus::NOT_FOUND;
+		}
+		break;
+	}
+	case CanPort_commands::len:
+		handleGetSet(cmd, replies, header.DLC);
+		header.DLC = std::min<uint32_t>(header.DLC,8);
+		break;
+	default:
+		return CommandStatus::NOT_FOUND;
+	}
+	return CommandStatus::OK;
+}
+
 #endif

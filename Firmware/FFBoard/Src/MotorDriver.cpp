@@ -17,7 +17,7 @@
 #include "MotorMPM.h"
 #endif
 
-ClassIdentifier MotorDriver::info ={.name = "None" , .id=0, .unique = '0', .hidden = false};
+ClassIdentifier MotorDriver::info ={.name = "None" , .id=CLSID_MOT_NONE, .visibility = ClassVisibility::visible};
 
 /**
  * Add available motor drivers here.
@@ -25,26 +25,27 @@ ClassIdentifier MotorDriver::info ={.name = "None" , .id=0, .unique = '0', .hidd
  */
 const std::vector<class_entry<MotorDriver>> MotorDriver::all_drivers =
 {
-	add_class<MotorDriver, MotorDriver>(),
+	add_class<MotorDriver, MotorDriver>(0),
 
 #ifdef TMC4671DRIVER
 
 //		add_class<TMC4671, MotorDriver>(),
-	add_class<TMC_1, MotorDriver>(),
-	add_class<TMC_2, MotorDriver>(),
+	add_class<TMC_1, MotorDriver>(1),
+	add_class<TMC_2, MotorDriver>(2),
 //		add_class<TMC_3, MotorDriver>(),
 #endif
 #ifdef PWMDRIVER
-	add_class<MotorPWM, MotorDriver>(),
+	add_class<MotorPWM, MotorDriver>(4),
 #else
-	add_class<MotorMPM, MotorDriver>(),
+	add_class<MotorMPM, MotorDriver>(4),
 #endif
 #ifdef ODRIVE
-	add_class<ODriveCAN1,MotorDriver>(),
-	add_class<ODriveCAN2,MotorDriver>(),
+	add_class<ODriveCAN1,MotorDriver>(5),
+	add_class<ODriveCAN2,MotorDriver>(6),
 #endif
 #ifdef VESC
-	add_class<VescCAN,MotorDriver>(),
+	add_class<VESC_1,MotorDriver>(7),
+	//add_class<VESC_2,MotorDriver>(8)
 #endif
 };
 
@@ -52,8 +53,12 @@ const std::vector<class_entry<MotorDriver>> MotorDriver::all_drivers =
  * Request an emergency stop if something critical happened or the emergency button is triggered
  * Should stop the motor immediately in a safe way.
  */
-void MotorDriver::emergencyStop(){
+void MotorDriver::emergencyStop(bool reset){
+	if(reset){
+		startMotor();
+	}else{
 	stopMotor();
+	}
 }
 
 bool MotorDriver::motorReady(){

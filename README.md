@@ -11,6 +11,9 @@
 		<a href="https://github.com/Ultrawipf/OpenFFBoard/stargazers">
             <img src="https://img.shields.io/github/stars/Ultrawipf/OpenFFBoard">
 		</a>
+		<a href="https://github.com/Ultrawipf/OpenFFBoard/actions/workflows/build-firmware.yml">
+            <img src="https://github.com/Ultrawipf/OpenFFBoard/actions/workflows/build-firmware.yml/badge.svg?branch=master">
+		</a>
 	</div>
 </div>
 
@@ -35,7 +38,9 @@ Updates often require matching firmware and GUI versions!
 ## Documentation
 Documentation will be added in the [GitHub Wiki](https://github.com/Ultrawipf/OpenFFBoard/wiki).
 
-Code summary and documentation of the latest stable version is available as a [Doxygen site](https://ultrawipf.github.io/ffboard_doxygen/).
+Available commands are listed on the [Commands wiki page](https://github.com/Ultrawipf/OpenFFBoard/wiki/Commands)
+
+Code summary and documentation of the latest stable version is available as a [Doxygen site](https://ultrawipf.github.io/OpenFFBoard/doxygen/).
 
 For discussion and progress updates we have a [Discord server](https://discord.com/invite/gHtnEcP).
 
@@ -48,10 +53,7 @@ The firmware is class based in a way that for example the whole main class can b
 
 For FFB the motor drivers, button sources or encoders also have their own interfaces.
 
-A simplified command parser is available and recommended for setting parameters at runtime. (see `CmdParser.h` and `CommandHandler.h` and the example main)
-
-Callbacks like command parsers and timers or external interrupts are also based on virtual classes that can be implemented to add this functionality to any other module. Take a look at `global_callbacks.cpp` for some of them.
-
+A unified command system supporting different interfaces is available and recommended for setting parameters at runtime. (see `CommandHandler.h` and the example mainclass)
 
 
 ### Copyright notice:

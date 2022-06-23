@@ -20,7 +20,7 @@
 
 struct SPIConfig {
 	SPIConfig(OutputPin cs,bool cspol = true)
-		:cs{cs}, cspol{false}{
+		:cs{cs}, cspol{cspol}{
 		peripheral.Mode = SPI_MODE_MASTER;
 		peripheral.Direction = SPI_DIRECTION_2LINES;
 		peripheral.DataSize = SPI_DATASIZE_8BIT;
@@ -62,6 +62,9 @@ public:
 	void transmit_DMA(const uint8_t* buf,uint16_t size,SPIDevice* device);
 	void transmitReceive_DMA(const uint8_t* txbuf,uint8_t* rxbuf,uint16_t size,SPIDevice* device);
 	void receive_DMA(uint8_t* buf,uint16_t size,SPIDevice* device);
+	void transmit_IT(const uint8_t* buf,uint16_t size,SPIDevice* device);
+	void transmitReceive_IT(const uint8_t* txbuf,uint8_t* rxbuf,uint16_t size,SPIDevice* device);
+	void receive_IT(uint8_t* buf,uint16_t size,SPIDevice* device);
 	void transmit(const uint8_t* buf,uint16_t size,SPIDevice* device,uint16_t timeout);
 	void receive(uint8_t* buf,uint16_t size,SPIDevice* device,int16_t timeout);
 	void transmitReceive(const uint8_t* txbuf,uint8_t* rxbuf,uint16_t size,SPIDevice* device,uint16_t timeout);
@@ -73,18 +76,22 @@ public:
 
 	bool isTaken(); // Returns true if semaphore was taken by another task
 
+	void takeExclusive(bool exclusive);
+	bool hasFreePins();
+
 private:
 	void beginTransfer(SPIConfig* config);
 	void endTransfer(SPIConfig* config);
 
 	SPI_HandleTypeDef &hspi;
-	SPIDevice* current_device;
+	SPIDevice* current_device = nullptr;
 	std::vector<OutputPin> csPins; // cs pins and bool true if pin is reserved
 	std::vector<OutputPin> freePins;
 
 	cpp_freertos::BinarySemaphore semaphore = cpp_freertos::BinarySemaphore(true);
 	bool allowReconfigure = false; // Allow reconfiguration at runtime. Can reduce performance a lot
-	bool isTakenFlag = false;
+	volatile bool isTakenFlag = false;
+	bool takenExclusive = false;
 };
 
 class SPIDevice {

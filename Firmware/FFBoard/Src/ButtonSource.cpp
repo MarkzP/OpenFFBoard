@@ -10,8 +10,7 @@
 ClassIdentifier ButtonSource::info = {
 	 .name 	= "NONE" ,
 	 .id	= 0,
-	 .unique = '0',
-	 .hidden = true
+	 .visibility = ClassVisibility::hidden
 };
 
 

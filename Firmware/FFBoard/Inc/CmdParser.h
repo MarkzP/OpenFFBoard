@@ -7,52 +7,38 @@
 
 #ifndef CMDPARSER_H_
 #define CMDPARSER_H_
-#include "main.h"
+//#include "main.h"
 #include <string>
 #include <cstring>
 #include "vector"
+#include "ErrorHandler.h"
+//#include "CommandInterface.h"
+#include <optional>
+#include "CommandHandler.h"
 
 
-
-enum class CMDtype{
-	set,setat,get,getat,none,help,err
-};
-struct ParsedCommand
-{
-    std::string cmd;
-    int64_t adr = 0;
-    int64_t val = 0;
-    char prefix = '\0';
-    std::string rawcmd;
-    CMDtype type = CMDtype::none;
-
-};
-
-template<class T> std::string cmdSetGet(ParsedCommand* cmd,T* val){
-	if(cmd->type == CMDtype::set){
-		val = cmd->val;
-		return "";
-	}else if(cmd->type == CMDtype::get){
-		std::string ret = std::to_string(*val);
-		return ret;
-	}
-	return "Err";
-}
-
+class CommandHandler;
+class CommandInterface;
 
 class CmdParser {
 public:
-	CmdParser();
+	CmdParser(uint32_t reservedBuffer = 16);
 	virtual ~CmdParser();
 
 	void clear();
-
-	std::string buffer;
-
 	bool add(char* Buf, uint32_t *Len);
-	std::vector<ParsedCommand> parse();
+	bool parse(std::vector<ParsedCommand>& commands);
+	int32_t bufferCapacity();
 
-	const std::string helpstring = "Parser usage:\n Set cmd=int/cmd?adr=var\n Get: cmd?/cmd?var\nInfo: cmd!\ndelims: ;/CR/NL/SPACE\n";
+	void setClearBufferTimeout(uint32_t timeout);
+
+private:
+	std::string buffer;
+	int32_t reservedBuffer = 100;
+	int32_t bufferMaxCapacity = 512;
+
+	uint32_t clearBufferTimeout = 0;
+	uint32_t lastAddTime = 0;
 };
 
 #endif /* CMDPARSER_H_ */

@@ -15,19 +15,20 @@
 #include "memory"
 
 class Encoder;
-class MotorDriver : public virtual ChoosableClass{
+class MotorDriver : public ChoosableClass{
 public:
 	MotorDriver(){};
 	virtual ~MotorDriver(){};
 
 	static ClassIdentifier info;
 	const ClassIdentifier getInfo();
+	const ClassType getClassType() override {return ClassType::Motordriver;};
 	static const std::vector<class_entry<MotorDriver>> all_drivers;
 
 	virtual void turn(int16_t power);
 	virtual void stopMotor();
 	virtual void startMotor();
-	virtual void emergencyStop();
+	virtual void emergencyStop(bool reset = false);
 
 	virtual bool motorReady(); // Returns true if the driver is active and ready to receive commands
 
@@ -41,7 +42,7 @@ public:
 	virtual bool hasIntegratedEncoder(); // Returns true if the driver has an integrated encoder. If false the axis will pass one to the driver
 
 
-private:
+protected:
 	std::shared_ptr<Encoder> drvEncoder = std::make_shared<Encoder>(); // Dummy encoder
 };
 

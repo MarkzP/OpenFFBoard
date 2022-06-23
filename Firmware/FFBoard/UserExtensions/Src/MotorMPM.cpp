@@ -8,6 +8,7 @@
 #include <MotorMPM.h>
 
 #define ADR_MPM_OFFSET	ADR_PWM_MODE
+#define CLSID_MOT_MPM		0xF1
 
 #define CPR	(1 << 16)
 
@@ -15,7 +16,7 @@ bool MotorMPM::mpmDriverInUse = false;
 
 
 ClassIdentifier MotorMPM::info =
-{ .name = "MPM", .id = 8, .hidden = false };
+{ .name = "MPM", .id = CLSID_MOT_MPM, };
 
 
 const ClassIdentifier MotorMPM::getInfo()
@@ -24,7 +25,7 @@ const ClassIdentifier MotorMPM::getInfo()
 }
 
 
-MotorMPM::MotorMPM()
+MotorMPM::MotorMPM() : CommandHandler("mpmdrv", CLSID_MOT_MPM)
 {
 	MotorMPM::mpmDriverInUse = true;
 
@@ -34,14 +35,18 @@ MotorMPM::MotorMPM()
 	rotation = 0;
 	offset = 25989;
 	aligned = false;
-	spiErrors = 0;
-
 	torque = 0;
 	spi = &HSPIDRV;
 
+	spi->Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+	HAL_SPI_Init(spi);
+
 	restoreFlash();
 
-	ready = spi->Init.DataSize == SPI_DATASIZE_16BIT;;
+	ready = true;
+
+	CommandHandler::registerCommands();
+	registerCommand("info", MotorMPM_commands::info, "MPM info", CMDFLAG_GET | CMDFLAG_INFOSTRING);
 }
 
 
@@ -156,12 +161,10 @@ void MotorMPM::exti(uint16_t GPIO_Pin)
 
 	if (!ready) return;
 
-	spiTx = torque;
+	spiTx = __builtin_bswap16(torque);
 
-	if (HAL_SPI_TransmitReceive_IT(spi, (uint8_t*)(&spiTx), (uint8_t*)(&spiRx), 1) != HAL_OK)
+	if (HAL_SPI_TransmitReceive_DMA(spi, (uint8_t*)(&spiTx), (uint8_t*)(&spiRx), 2) != HAL_OK)
 	{
-		spiErrors++;
-
 		HAL_GPIO_WritePin(SPI1_SS1_GPIO_Port, SPI1_SS1_Pin, GPIO_PIN_RESET);
 	}
 }
@@ -171,7 +174,7 @@ void MotorMPM::SpiTxRxCplt(SPI_HandleTypeDef *hspi)
 {
 	if (hspi != spi) return;
 
-	rawPosition = spiRx;
+	rawPosition = __builtin_bswap16(spiRx);
 
 	positionChanged = true;
 
@@ -184,38 +187,36 @@ void MotorMPM::SpiError(SPI_HandleTypeDef *hspi)
 	if (hspi == spi)
 	{
 		HAL_SPI_Abort_IT(spi);
-		spiErrors++;
 
 		HAL_GPIO_WritePin(SPI1_SS1_GPIO_Port, SPI1_SS1_Pin, GPIO_PIN_RESET);
 	}
 }
 
 
-ParseStatus MotorMPM::command(ParsedCommand *cmd, std::string *reply)
+CommandStatus MotorMPM::command(const ParsedCommand& cmd,std::vector<CommandReply>& replies)
 {
-	ParseStatus result = ParseStatus::OK;
+	CommandStatus result = CommandStatus::OK;
 
-	if (cmd->cmd == "mpm")
+	if (cmd.cmdId == (uint32_t)MotorMPM_commands::info)
 	{
-		if (cmd->type == CMDtype::get)
+		if (cmd.type == CMDtype::get)
 		{
-			*reply += ready ? "R" : "*";
-			*reply += enabled ? "E" : "*";
-			*reply +=
-					" (" + std::to_string(rotation) + " * " + std::to_string(CPR)
+			replies.emplace_back(
+					"OK ; Rdy=" + std::to_string(ready)
+					+ "; En=" + std::to_string(enabled)
+					+ "; SS1=" + std::to_string(HAL_GPIO_ReadPin(SPI1_SS1_GPIO_Port, SPI1_SS1_Pin))
+					+ " (" + std::to_string(rotation) + " * " + std::to_string(CPR)
 					+ ") + " + std::to_string(encoderAngle)
 					+ " + " + std::to_string(offset)
 					+ " = " + std::to_string(position)
-					+ "; Torque = " + std::to_string(torque)
-					+ "; Raw = " + std::to_string(rawPosition)
-					+ "; Errors = " + std::to_string(spiErrors);
-
-			spiErrors = 0;
+					+ "; Torque=" + std::to_string(torque)
+					+ "; Raw=" + std::to_string(rawPosition)
+			);
 		}
 	}
 	else
 	{
-		result = ParseStatus::NOT_FOUND; // No valid command
+		result = CommandStatus::NOT_FOUND; // No valid command
 	}
 
 	return result;
@@ -236,9 +237,6 @@ void MotorMPM::restoreFlash()
 	{
 		offset = (int16_t)u_offset;
 	}
-	else
-	{
-		spiErrors = 666;
-	}
+
 	aligned = false;
 }

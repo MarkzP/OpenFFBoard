@@ -13,15 +13,19 @@
 #include "PersistentStorage.h"
 #include "vector"
 #include "CommandHandler.h"
+#include "constants.h"
 
-class AnalogSource : public virtual ChoosableClass, public PersistentStorage{
+
+class AnalogSource : public ChoosableClass, public PersistentStorage{
 public:
+
 	AnalogSource();
 	virtual ~AnalogSource();
 
 	const virtual ClassIdentifier getInfo() = 0;
 	static ClassIdentifier info;
 	static bool isCreatable() {return true;};
+	const ClassType getClassType() override {return ClassType::Analogsource;};
 
 	virtual std::vector<int32_t>* getAxes();
 	std::vector<int32_t> buf;

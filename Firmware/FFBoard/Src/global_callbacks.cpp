@@ -15,7 +15,6 @@
 #include "constants.h"
 
 #include "UsbHidHandler.h"
-#include "HidCommandHandler.h"
 #include "PersistentStorage.h"
 #include "ExtiHandler.h"
 #include "UartHandler.h"
@@ -24,6 +23,9 @@
 #include "CommandHandler.h"
 #include "EffectsCalculator.h"
 #include "SpiHandler.h"
+#include "HidCommandInterface.h"
+#include "I2CHandler.h"
+
 #ifdef CANBUS
 #include "CanHandler.h"
 #endif
@@ -34,6 +36,7 @@
 #endif
 
 #include "cdc_device.h"
+#include "CDCcomm.h"
 
 
 extern FFBoardMain* mainclass;
@@ -74,6 +77,10 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 #endif
 #endif
 
+/**
+ * Note: this is normally generated in the main.c
+ * A call to HAL_TIM_PeriodElapsedCallback_CPP must be added there instead!
+ */
 __weak void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim){
 	HAL_TIM_PeriodElapsedCallback_CPP(htim);
 }
@@ -220,6 +227,42 @@ void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi){
 	}
 }
 
+// I2C
+
+void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef * hi2c){
+	for(I2CHandler* c : I2CHandler::getI2CHandlers()){
+		c->I2cTxCplt(hi2c);
+	}
+}
+
+void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef * hi2c){
+	for(I2CHandler* c : I2CHandler::getI2CHandlers()){
+		c->I2cRxCplt(hi2c);
+	}
+}
+
+void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef * hi2c){
+	for(I2CHandler* c : I2CHandler::getI2CHandlers()){
+		c->I2cTxCplt(hi2c);
+	}
+}
+
+void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef * hi2c){
+	for(I2CHandler* c : I2CHandler::getI2CHandlers()){
+		c->I2cRxCplt(hi2c);
+	}
+}
+
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c){
+	for(I2CHandler* c : I2CHandler::getI2CHandlers()){
+		c->I2cError(hi2c);
+	}
+}
+
+
+void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c);
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c);
+
 // USB Callbacks
 USBdevice* usb_device;
 uint8_t const * tud_descriptor_device_cb(void){
@@ -240,15 +283,14 @@ uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf){
 
 void tud_cdc_rx_cb(uint8_t itf){
 	pulseSysLed();
-	uint8_t buf[64];
-	uint32_t count = tud_cdc_n_read(itf,buf, sizeof(buf));
-	if(mainclass!=nullptr)
-		mainclass->cdcRcv((char*)buf,&count);
+	if(mainclass!=nullptr){
+		mainclass->cdcRcvReady(itf);
+	}
 }
 
 void tud_cdc_tx_complete_cb(uint8_t itf){
-	if(mainclass!=nullptr)
-		mainclass->cdcFinished(itf);
+
+	CDCcomm::cdcFinished(itf);
 }
 
 
@@ -265,11 +307,11 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
 	if(UsbHidHandler::globalHidHandler!=nullptr)
 		UsbHidHandler::globalHidHandler->hidOut(report_id,report_type,buffer,bufsize);
 
-	if(report_id == HID_ID_CUSTOMCMD){ // called only for the vendor defined report
-		for(HidCommandHandler* c : HidCommandHandler::hidCmdHandlers){
-			c->processHidCommand((HID_Custom_Data_t*)(buffer));
-		}
+	if(report_id == HID_ID_HIDCMD){
+		if(HID_CommandInterface::globalInterface != nullptr)
+			HID_CommandInterface::globalInterface->hidCmdCallback((HID_CMD_Data_t*)(buffer));
 	}
+
 
 }
 
@@ -278,9 +320,22 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
  */
 uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type,uint8_t* buffer, uint16_t reqlen){
 	if(UsbHidHandler::globalHidHandler != nullptr)
-		return UsbHidHandler::globalHidHandler->hidGet(report_id, report_type, buffer,reqlen);
+		return UsbHidHandler::globalHidHandler->hidGet(report_id, report_type, buffer,reqlen); // reply buffer should not contain report ID in first byte
 	return 0;
 }
+
+/**
+ * HID transfer complete
+ */
+void tud_hid_report_complete_cb(uint8_t itf, uint8_t const* report, uint8_t len){
+	if(HID_CommandInterface::globalInterface != nullptr){
+		HID_CommandInterface::globalInterface->transferComplete(itf, report, len);
+	}
+	if(UsbHidHandler::globalHidHandler != nullptr){
+		UsbHidHandler::globalHidHandler->transferComplete(itf, report, len);
+	}
+}
+
 #ifdef MIDI
 MidiHandler* midihandler = nullptr;
 /**
@@ -288,7 +343,8 @@ MidiHandler* midihandler = nullptr;
  */
 void tud_midi_rx_cb(uint8_t itf){
 	if(!midihandler) return;
-	if(tud_midi_n_receive(0,MidiHandler::buf)){
+
+	if(tud_midi_n_packet_read(itf,MidiHandler::buf)){
 		midihandler->midiRx(itf, MidiHandler::buf);
 	}
 }
