@@ -59,7 +59,7 @@ extern ADC_HandleTypeDef hadc3;
  */
 #if defined(ADC1_CHANNELS) || defined(ADC2_CHANNELS) || defined(ADC3_CHANNELS)
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
-#ifdef VSENSE
+#ifdef VSENSE_HADC
 	//Pulse braking mosfet if internal voltage is higher than supply.
 	if(hadc == &VSENSE_HADC)
 		brakeCheck();

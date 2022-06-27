@@ -46,7 +46,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
-uint8_t ucHeap[ configTOTAL_HEAP_SIZE ] __attribute__((section ("._user_heap_stack")));
+uint8_t ucHeap[ configTOTAL_HEAP_SIZE ];
 /* USER CODE END Variables */
 
 /* Private function prototypes -----------------------------------------------*/
