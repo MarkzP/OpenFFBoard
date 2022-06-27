@@ -232,6 +232,7 @@ void Axis::setPower(uint16_t power)
 {
 	this->power = power;
 	updateTorqueScaler();
+#ifdef TMC4671DRIVER
 	// Update hardware limits for TMC for safety
 	TMC4671 *drv = dynamic_cast<TMC4671 *>(this->drv.get());
 	if (drv != nullptr)
@@ -240,6 +241,7 @@ void Axis::setPower(uint16_t power)
 		//tmclimits.pid_torque_flux = power;
 		drv->setTorqueLimit(power);
 	}
+#endif
 }
 
 
@@ -264,10 +266,12 @@ void Axis::setDrvType(uint8_t drvtype)
 		this->drv->setEncoder(this->enc);
 	}
 
+#ifdef TMC4671DRIVER
 	if (dynamic_cast<TMC4671 *>(drv))
 	{
 		setupTMC4671();
 	}
+#endif
 
 	if (!tud_connected())
 	{
@@ -280,6 +284,7 @@ void Axis::setDrvType(uint8_t drvtype)
 	}
 }
 
+#ifdef TMC4671DRIVER
 // Special tmc setup methods
 void Axis::setupTMC4671()
 {
@@ -297,6 +302,7 @@ void Axis::setupTMC4671()
 	drv->setMotionMode(MotionMode::torque);
 	drv->Start(); // Start thread
 }
+#endif
 
 
 
@@ -514,7 +520,7 @@ int16_t Axis::updateEndstop(){
 	addtorque *= (float)endstopStrength * endstopGain * torqueScaler; // Apply endstop gain for stiffness.
 	addtorque *= -clipdir;
 
-	addtorque -= metric.current.speed * 5.0f;
+	addtorque -= metric.current.speed * 6.0f;
 
 	return clip<int32_t,int32_t>(addtorque,-0x7fff,0x7fff);
 }

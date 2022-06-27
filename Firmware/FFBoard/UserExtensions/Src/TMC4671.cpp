@@ -5,6 +5,8 @@
  *      Author: Yannick
  */
 
+#ifdef TMC4671DRIVER
+
 #include "TMC4671.h"
 #include "ledEffects.h"
 #include "voltagesense.h"
@@ -2842,4 +2844,4 @@ void TMC4671::TMC_ExternalEncoderUpdateThread::updateFromIsr(){
 	this->NotifyFromISR();
 }
 
-
+#endif

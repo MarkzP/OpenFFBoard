@@ -5,6 +5,8 @@
  *      Author: Yannick
  */
 
+#ifdef TMC4671DRIVER
+
 #include <TMCDebugBridge.h>
 #include "ledEffects.h"
 #include "voltagesense.h"
@@ -246,3 +248,4 @@ TMCDebugBridge::~TMCDebugBridge() {
 	HAL_GPIO_WritePin(DRV_ENABLE_GPIO_Port,DRV_ENABLE_Pin,GPIO_PIN_RESET);
 }
 
+#endif
