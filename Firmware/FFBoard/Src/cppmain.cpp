@@ -5,7 +5,10 @@
 #include "global_callbacks.h"
 #include "cpp_target_config.h"
 #include "cmsis_os.h"
+
+#ifdef STM32F407xx
 #include "stm32f4xx_hal_flash.h"
+#endif
 
 #include "tusb.h"
 
@@ -19,9 +22,14 @@ extern IWDG_HandleTypeDef hiwdg; // Watchdog
 bool running = true;
 bool mainclassChosen = false;
 
-uint16_t main_id = 1;
+uint16_t main_id = 0;
 
+#ifdef STM32F407xx
 FFBoardMain* mainclass __attribute__((section (".ccmram")));
+#else
+FFBoardMain* mainclass;
+#endif
+
 ClassChooser<FFBoardMain> mainchooser(class_registry);
 
 
@@ -47,7 +55,9 @@ void cppmain() {
 	// Flash init
 	// TODO verify why or if flash does not erase or initialize correctly on some new chips
 	HAL_FLASH_Unlock();
+#ifdef STM32F407xx
 	__HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_PGPERR | FLASH_FLAG_PGSERR | FLASH_FLAG_BSY);
+#endif
 
 	if( EE_Init() != EE_OK){
 		Error_Handler();
@@ -71,9 +81,9 @@ void cppmain() {
 
 	// If switch pressed at boot select failsafe implementation
 	if(HAL_GPIO_ReadPin(BUTTON_A_GPIO_Port, BUTTON_A_Pin) == 1){
-		main_id = 1;
+		main_id = 0;
 	}else{
-		if(!Flash_ReadWriteDefault(ADR_CURRENT_CONFIG, &main_id,1)){
+		if(!Flash_ReadWriteDefault(ADR_CURRENT_CONFIG, &main_id,0)){
 			Error_Handler();
 		}
 	}

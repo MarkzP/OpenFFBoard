@@ -16,9 +16,13 @@ ClassIdentifier I2CPort::info = {
 
 static bool operator==(const I2C_InitTypeDef& lhs, const I2C_InitTypeDef& rhs) {
 	return lhs.AddressingMode == rhs.AddressingMode
+#ifdef STM32F407xx
 			&& lhs.ClockSpeed == rhs.ClockSpeed
+#endif
 			&& lhs.DualAddressMode == rhs.DualAddressMode
+#ifdef STM32F407xx
 			&& lhs.DutyCycle == rhs.DutyCycle
+#endif
 			&& lhs.GeneralCallMode == rhs.GeneralCallMode
 			&& lhs.NoStretchMode == rhs.NoStretchMode
 			&& lhs.OwnAddress1 == rhs.OwnAddress1
@@ -59,6 +63,7 @@ void I2CPort::restoreFlash(){
 }
 
 void I2CPort::setSpeedPreset(uint8_t preset){
+#ifdef STM32F407xx
 	uint32_t speed;
 	switch(preset){
 	case 0:
@@ -74,6 +79,7 @@ void I2CPort::setSpeedPreset(uint8_t preset){
 	I2C_InitTypeDef config = hi2c.Init;
 	config.ClockSpeed = speed;
 	configurePort(&config);
+#endif
 }
 
 uint8_t I2CPort::getSpeedPreset(){

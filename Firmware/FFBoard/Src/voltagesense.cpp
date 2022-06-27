@@ -6,7 +6,7 @@
  */
 
 #include "target_constants.h"
-#ifdef VSENSE
+#ifdef VSENSE_HADC
 
 #include "global_callbacks.h"
 #include "constants.h"

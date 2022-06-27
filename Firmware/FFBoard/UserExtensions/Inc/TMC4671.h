@@ -268,9 +268,9 @@ struct TMC4671Biquad{
 
 class TMC4671 :
 		public MotorDriver, public PersistentStorage, public Encoder,
-		public CommandHandler, public SPIDevice, public ExtiHandler, public cpp_freertos::Thread,
+		public CommandHandler, public SPIDevice, public ExtiHandler, public cpp_freertos::Thread
 #ifdef TIM_TMC
-		public TimerHandler
+		,public TimerHandler
 #endif
 {
 

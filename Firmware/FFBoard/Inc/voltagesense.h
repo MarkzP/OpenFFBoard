@@ -9,7 +9,7 @@
 #define VOLTAGESENSE_H_
 #include "target_constants.h"
 
-#ifdef VSENSE
+#ifdef VSENSE_HADC
 
 uint16_t getIntV();
 uint16_t getExtV();

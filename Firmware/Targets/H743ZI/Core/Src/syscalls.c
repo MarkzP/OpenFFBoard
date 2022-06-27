@@ -31,6 +31,8 @@
 #include <sys/time.h>
 #include <sys/times.h>
 
+#include "stm32h7xx.h"
+
 
 /* Variables */
 //#undef errno

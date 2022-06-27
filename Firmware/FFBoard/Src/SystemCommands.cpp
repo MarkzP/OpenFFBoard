@@ -114,20 +114,24 @@ CommandStatus SystemCommands::internalCommand(const ParsedCommand& cmd,std::vect
 			mainchooser.replyAvailableClasses(replies,mainclass->getSelectionID());
 			break;
 
+#ifdef ADC_CHAN_VINT
 		case FFBoardMain_commands::vint:
 		{
 			replies.emplace_back(getIntV());
 			break;
 		}
+#endif
 
 		case FFBoardMain_commands::debug:
 			return handleGetSet(cmd, replies, SystemCommands::debugMode);
 
+#ifdef ADC_CHAN_VEXT
 		case FFBoardMain_commands::vext:
 		{
 			replies.emplace_back(getExtV());
 			break;
 		}
+#endif
 
 		case FFBoardMain_commands::main:
 		{

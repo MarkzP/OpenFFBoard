@@ -46,7 +46,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
-uint8_t ucHeap[ configTOTAL_HEAP_SIZE ]; // rtos heap // __attribute__((section (".ccmram")))
+uint8_t ucHeap[ configTOTAL_HEAP_SIZE ] __attribute__((section ("._user_heap_stack")));
 /* USER CODE END Variables */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -55,24 +55,9 @@ uint8_t ucHeap[ configTOTAL_HEAP_SIZE ]; // rtos heap // __attribute__((section 
 /* USER CODE END FunctionPrototypes */
 
 /* Hook prototypes */
-void configureTimerForRunTimeStats(void);
-unsigned long getRunTimeCounterValue(void);
 void vApplicationIdleHook(void);
 void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName);
 void vApplicationMallocFailedHook(void);
-
-/* USER CODE BEGIN 1 */
-/* Functions needed when configGENERATE_RUN_TIME_STATS is on */
-__weak void configureTimerForRunTimeStats(void)
-{
-
-}
-
-__weak unsigned long getRunTimeCounterValue(void)
-{
-return 0;
-}
-/* USER CODE END 1 */
 
 /* USER CODE BEGIN 2 */
 void vApplicationIdleHook( void )
@@ -95,6 +80,7 @@ void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName)
    /* Run time stack overflow checking is performed if
    configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2. This hook function is
    called if a stack overflow is detected. */
+	Error_Handler();
 }
 /* USER CODE END 4 */
 
@@ -111,6 +97,7 @@ void vApplicationMallocFailedHook(void)
    FreeRTOSConfig.h, and the xPortGetFreeHeapSize() API function can be used
    to query the size of free heap space that remains (although it does not
    provide information on how the remaining heap might be fragmented). */
+	taskDISABLE_INTERRUPTS();
 }
 /* USER CODE END 5 */
 
@@ -119,4 +106,3 @@ void vApplicationMallocFailedHook(void)
 
 /* USER CODE END Application */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
