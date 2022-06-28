@@ -352,7 +352,7 @@ int32_t Axis::scaleEncValue(float angle, uint16_t degrees){
  */
 float Axis::getEncAngle(Encoder *enc){
 	if(enc != nullptr){
-		float pos = 360.0 * enc->getPos_f();
+		float pos = 360.0f * enc->getPos_f();
 		if (isInverted()){
 			pos= -pos;
 		}
@@ -448,7 +448,6 @@ void Axis::calculateAxisEffects(bool ffb_on){
 
 void Axis::setFxRatio(uint8_t val) {
 	fx_ratio_i = val;
-	updateTorqueScaler();
 }
 
 
@@ -493,8 +492,7 @@ uint16_t Axis::getPower(){
 }
 
 void  Axis::updateTorqueScaler() {
-	float effect_margin_scaler = ((float)fx_ratio_i/255.0);
-	torqueScaler = ((float)power / (float)0x7fff) * effect_margin_scaler;
+	torqueScaler = ((float)power / (float)0x7fff);
 }
 
 float Axis::getTorqueScaler(){
@@ -520,7 +518,7 @@ int16_t Axis::updateEndstop(){
 	addtorque *= (float)endstopStrength * endstopGain * torqueScaler; // Apply endstop gain for stiffness.
 	addtorque *= -clipdir;
 
-	addtorque -= metric.current.speed * 6.0f;
+	addtorque -= metric.current.speed * (float)((fx_ratio_i - 102) / 4);
 
 	return clip<int32_t,int32_t>(addtorque,-0x7fff,0x7fff);
 }

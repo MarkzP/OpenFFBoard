@@ -45,10 +45,6 @@ extern void cppmain();
 /* Private variables ---------------------------------------------------------*/
 
 SPI_HandleTypeDef hspi3;
-DMA_HandleTypeDef hdma_spi3_rx;
-DMA_HandleTypeDef hdma_spi3_tx;
-
-TIM_HandleTypeDef htim13;
 
 UART_HandleTypeDef huart3;
 
@@ -70,13 +66,10 @@ __attribute__((weak)) void cppmain(){
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_DMA_Init(void);
 static void MX_USART3_UART_Init(void);
-static void MX_TIM13_Init(void);
 static void MX_SPI3_Init(void);
 void StartDefaultTask(void *argument);
 
-static void MX_NVIC_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -96,6 +89,9 @@ int main(void)
 
   /* USER CODE END 1 */
 
+  /* Enable I-Cache---------------------------------------------------------*/
+  SCB_EnableICache();
+
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
@@ -114,13 +110,8 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
   MX_USART3_UART_Init();
-  MX_TIM13_Init();
   MX_SPI3_Init();
-
-  /* Initialize interrupts */
-  MX_NVIC_Init();
   /* USER CODE BEGIN 2 */
   HAL_GPIO_WritePin(LED_ERR_GPIO_Port, LED_ERR_Pin, GPIO_PIN_SET);
   MX_USB_OTG_FS_PCD_Init();
@@ -232,17 +223,6 @@ void SystemClock_Config(void)
 }
 
 /**
-  * @brief NVIC Configuration.
-  * @retval None
-  */
-static void MX_NVIC_Init(void)
-{
-  /* DMA2_Stream0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
-}
-
-/**
   * @brief SPI3 Initialization Function
   * @param None
   * @retval None
@@ -261,7 +241,7 @@ static void MX_SPI3_Init(void)
   hspi3.Instance = SPI3;
   hspi3.Init.Mode = SPI_MODE_MASTER;
   hspi3.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi3.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi3.Init.DataSize = SPI_DATASIZE_16BIT;
   hspi3.Init.CLKPolarity = SPI_POLARITY_HIGH;
   hspi3.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi3.Init.NSS = SPI_NSS_SOFT;
@@ -287,37 +267,6 @@ static void MX_SPI3_Init(void)
   /* USER CODE BEGIN SPI3_Init 2 */
 
   /* USER CODE END SPI3_Init 2 */
-
-}
-
-/**
-  * @brief TIM13 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM13_Init(void)
-{
-
-  /* USER CODE BEGIN TIM13_Init 0 */
-
-  /* USER CODE END TIM13_Init 0 */
-
-  /* USER CODE BEGIN TIM13_Init 1 */
-
-  /* USER CODE END TIM13_Init 1 */
-  htim13.Instance = TIM13;
-  htim13.Init.Prescaler = 240;
-  htim13.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim13.Init.Period = 65535;
-  htim13.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim13.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim13) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM13_Init 2 */
-
-  /* USER CODE END TIM13_Init 2 */
 
 }
 
@@ -406,22 +355,6 @@ void MX_USB_OTG_FS_PCD_Init(void)
 }
 
 /**
-  * Enable DMA controller clock
-  */
-static void MX_DMA_Init(void)
-{
-
-  /* DMA controller clock enable */
-  __HAL_RCC_DMA2_CLK_ENABLE();
-
-  /* DMA interrupt init */
-  /* DMA2_Stream3_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
-
-}
-
-/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -440,10 +373,10 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOE_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, LED_SYS_Pin|LED_ERR_Pin|SPI1_SS1_Pin|SPI1_SS2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, LED_SYS_Pin|LED_ERR_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, DRV_BRAKE_Pin|DRV_ENABLE_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(MPM_SS_GPIO_Port, MPM_SS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_CLIP_GPIO_Port, LED_CLIP_Pin, GPIO_PIN_RESET);
@@ -469,31 +402,18 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : ENCODER_Z_Pin */
-  GPIO_InitStruct.Pin = ENCODER_Z_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(ENCODER_Z_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : DRV_BRAKE_Pin DRV_ENABLE_Pin */
-  GPIO_InitStruct.Pin = DRV_BRAKE_Pin|DRV_ENABLE_Pin;
+  /*Configure GPIO pin : MPM_SS_Pin */
+  GPIO_InitStruct.Pin = MPM_SS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  HAL_GPIO_Init(MPM_SS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : FLAG_Pin */
   GPIO_InitStruct.Pin = FLAG_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(FLAG_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : SPI1_SS1_Pin SPI1_SS2_Pin */
-  GPIO_InitStruct.Pin = SPI1_SS1_Pin|SPI1_SS2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LED_CLIP_Pin */
   GPIO_InitStruct.Pin = LED_CLIP_Pin;

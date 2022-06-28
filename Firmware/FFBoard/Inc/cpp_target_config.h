@@ -15,9 +15,13 @@
 #include "CAN.h"
 #include "I2C.h"
 
+#ifdef EXT2_SPI_PORT
 extern SPIPort external_spi;
+#endif
 extern SPIPort motor_spi;
+#ifdef EXT3_SPI_PORT
 extern SPIPort ext3_spi;
+#endif
 
 #ifdef UART_PORT_MOTOR
 extern UARTPort motor_uart;

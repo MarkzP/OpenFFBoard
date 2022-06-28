@@ -85,19 +85,11 @@ void ExitDFU();
 #define STLINK_RX_GPIO_Port GPIOD
 #define STLINK_TX_Pin GPIO_PIN_9
 #define STLINK_TX_GPIO_Port GPIOD
-#define ENCODER_Z_Pin GPIO_PIN_6
-#define ENCODER_Z_GPIO_Port GPIOC
-#define DRV_BRAKE_Pin GPIO_PIN_8
-#define DRV_BRAKE_GPIO_Port GPIOC
-#define DRV_ENABLE_Pin GPIO_PIN_9
-#define DRV_ENABLE_GPIO_Port GPIOC
+#define MPM_SS_Pin GPIO_PIN_15
+#define MPM_SS_GPIO_Port GPIOA
 #define FLAG_Pin GPIO_PIN_2
 #define FLAG_GPIO_Port GPIOD
 #define FLAG_EXTI_IRQn EXTI2_IRQn
-#define SPI1_SS1_Pin GPIO_PIN_6
-#define SPI1_SS1_GPIO_Port GPIOB
-#define SPI1_SS2_Pin GPIO_PIN_7
-#define SPI1_SS2_GPIO_Port GPIOB
 #define LED_CLIP_Pin GPIO_PIN_1
 #define LED_CLIP_GPIO_Port GPIOE
 void   MX_USB_OTG_FS_PCD_Init(void);

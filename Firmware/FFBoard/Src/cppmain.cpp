@@ -79,7 +79,9 @@ void cppmain() {
 	HAL_FLASH_Lock();
 	// ------------------------
 
+#ifdef TIM_MICROS
 	TIM_MICROS.Instance->CR1 = 1; // Enable microsecond clock
+#endif
 
 	startADC(); // enable ADC DMA
 
@@ -116,11 +118,12 @@ void refreshWatchdog(){
 }
 
 
-
+#ifdef TIM_MICROS
 uint32_t micros(){
 	//return DWT->CYCCNT / clkmhz;
 	return TIM_MICROS.Instance->CNT;
 }
+#endif
 
 
 void* malloc(size_t size)
@@ -133,7 +136,8 @@ void free(void *p)
     vPortFree(p);
 }
 
+#ifdef TIM_MICROS
 unsigned long getRunTimeCounterValue(void){
 	return micros();
 }
-
+#endif

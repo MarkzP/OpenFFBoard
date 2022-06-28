@@ -12,6 +12,12 @@
 
 #define CPR	(1 << 16)
 
+#ifdef STM32H743xx
+extern SPI_HandleTypeDef hspi3;
+#else
+extern SPI_HandleTypeDef hspi1;
+#endif
+
 bool MotorMPM::mpmDriverInUse = false;
 
 
@@ -36,9 +42,11 @@ MotorMPM::MotorMPM() : CommandHandler("mpmdrv", CLSID_MOT_MPM)
 	offset = 25989;
 	aligned = false;
 	torque = 0;
-	spi = &HSPIDRV;
 
-#ifndef STM32H743xx
+#ifdef STM32H743xx
+	spi = &hspi3;
+#else
+	spi = &hspi1;
 	spi->Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
 	HAL_SPI_Init(spi);
 #endif
@@ -201,7 +209,10 @@ void MotorMPM::SpiError(SPI_HandleTypeDef *hspi)
 {
 	if (hspi != spi) return;
 
+#ifdef STM32H743xx
 	HAL_SPI_Abort_IT(spi);
+#else
+#endif
 
 	positionChanged = true;
 

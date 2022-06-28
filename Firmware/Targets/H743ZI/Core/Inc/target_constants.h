@@ -52,21 +52,21 @@
 //#define CANANALOG // Requires CAN
 //#define BISSENCODER // Requires SPI3
 
-#define UARTCOMMANDS
+//#define UARTCOMMANDS
 
 //----------------------
 
 
-#define TIM_ENC htim3
+//#define TIM_ENC htim3
 // Timer 3 is used by the encoder.
 //#define TIM_PWM htim1
 
-#define TIM_MICROS htim13
+//#define TIM_MICROS htim13
 //#define TIM_USER htim9 // Timer with full core clock speed available for the mainclass
 //#define TIM_TMC htim6 // Timer running at half clock speed
 
-extern UART_HandleTypeDef huart3;
-#define UART_PORT_EXT huart3 // main uart port
+//extern UART_HandleTypeDef huart3;
+//#define UART_PORT_EXT huart3 // main uart port
 
 //extern UART_HandleTypeDef huart3;
 //#define UART_PORT_MOTOR huart3 // motor uart port
@@ -97,8 +97,8 @@ extern UART_HandleTypeDef huart3;
 
 #define BUTTON_PINS 8
 
-extern SPI_HandleTypeDef hspi3;
-#define HSPIDRV hspi3
+//extern SPI_HandleTypeDef hspi3;
+//#define HSPIDRV hspi3
 //extern SPI_HandleTypeDef hspi2;
 //#define HSPI2 hspi2
 //extern SPI_HandleTypeDef hspi3;
@@ -119,7 +119,7 @@ extern CAN_HandleTypeDef hcan1;
 extern const uint32_t canSpeedBTR_preset[];
 #endif
 
-#define DEBUGPIN // GP1 pin. see cpp target constants
+//#define DEBUGPIN // GP1 pin. see cpp target constants
 
 //Flash. 2 pages used
 /* EEPROM start address in Flash

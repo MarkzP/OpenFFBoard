@@ -6,7 +6,7 @@
  *      Update : Yannick & Vincent
  *
  */
-
+#ifdef BISSENCODER
 #include "EncoderBissC.h"
 bool EncoderBissC::inUse = false;
 ClassIdentifier EncoderBissC::info = {
@@ -270,3 +270,4 @@ CommandStatus EncoderBissC::command(const ParsedCommand& cmd,std::vector<Command
 //	}
 //	return status;
 }
+#endif

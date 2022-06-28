@@ -57,10 +57,7 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-extern DMA_HandleTypeDef hdma_spi3_rx;
-extern DMA_HandleTypeDef hdma_spi3_tx;
 extern SPI_HandleTypeDef hspi3;
-extern TIM_HandleTypeDef htim13;
 extern UART_HandleTypeDef huart3;
 extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 extern TIM_HandleTypeDef htim7;
@@ -196,20 +193,6 @@ void USART3_IRQHandler(void)
 }
 
 /**
-  * @brief This function handles TIM8 update interrupt and TIM13 global interrupt.
-  */
-void TIM8_UP_TIM13_IRQHandler(void)
-{
-  /* USER CODE BEGIN TIM8_UP_TIM13_IRQn 0 */
-
-  /* USER CODE END TIM8_UP_TIM13_IRQn 0 */
-  HAL_TIM_IRQHandler(&htim13);
-  /* USER CODE BEGIN TIM8_UP_TIM13_IRQn 1 */
-
-  /* USER CODE END TIM8_UP_TIM13_IRQn 1 */
-}
-
-/**
   * @brief This function handles SPI3 global interrupt.
   */
 void SPI3_IRQHandler(void)
@@ -235,34 +218,6 @@ void TIM7_IRQHandler(void)
   /* USER CODE BEGIN TIM7_IRQn 1 */
 
   /* USER CODE END TIM7_IRQn 1 */
-}
-
-/**
-  * @brief This function handles DMA2 stream0 global interrupt.
-  */
-void DMA2_Stream0_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA2_Stream0_IRQn 0 */
-
-  /* USER CODE END DMA2_Stream0_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_spi3_rx);
-  /* USER CODE BEGIN DMA2_Stream0_IRQn 1 */
-
-  /* USER CODE END DMA2_Stream0_IRQn 1 */
-}
-
-/**
-  * @brief This function handles DMA2 stream3 global interrupt.
-  */
-void DMA2_Stream3_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA2_Stream3_IRQn 0 */
-
-  /* USER CODE END DMA2_Stream3_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_spi3_tx);
-  /* USER CODE BEGIN DMA2_Stream3_IRQn 1 */
-
-  /* USER CODE END DMA2_Stream3_IRQn 1 */
 }
 
 /**

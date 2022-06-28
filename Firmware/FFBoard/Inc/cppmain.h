@@ -54,8 +54,10 @@ T clip(T v, C l, C h)
   return { v > h ? h : v < l ? l : v };
 }
 
+#ifdef TIM_MICROS
 uint32_t micros(); // Returns microsecond scaled time
 unsigned long getRunTimeCounterValue(void); // RTOS
+#endif
 
 void refreshWatchdog(); // Refreshes the watchdog
 

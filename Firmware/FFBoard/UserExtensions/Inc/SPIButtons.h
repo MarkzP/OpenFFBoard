@@ -8,6 +8,9 @@
 #ifndef SPIBUTTONS_H_
 #define SPIBUTTONS_H_
 
+#include "target_constants.h"
+#ifdef SPIBUTTONS
+
 #include "CommandHandler.h"
 #include <ButtonSource.h>
 #include "cppmain.h"
@@ -101,5 +104,6 @@ public:
 	static ClassIdentifier info;
 	static bool isCreatable();
 };
+#endif
 
 #endif /* SPIBUTTONS_H_ */
