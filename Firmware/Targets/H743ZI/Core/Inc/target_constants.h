@@ -15,7 +15,7 @@
 // Hardware name string
 #define HW_TYPE "H743ZI"
 #define HW_TYPE_INT 7
-#define FW_DEVID 0x450 // F407
+#define FW_DEVID 0x450 // H743
 
 #include "main.h"
 #include "stm32h7xx_hal.h"
@@ -93,7 +93,7 @@
 //#define AIN_HADC hadc1	// main adc for analog pins
 //#define ADC_PINS 6	// Amount of analog channel pins
 //#define ADC_CHAN_FPIN 0 // First analog channel pin. last channel = fpin+ADC_PINS-1
-#define VOLTAGE_MULT_DEFAULT 24.6 // Voltage in mV = adc*VOLTAGE_MULT (24.6 for 976k/33k divider)
+//#define VOLTAGE_MULT_DEFAULT 24.6 // Voltage in mV = adc*VOLTAGE_MULT (24.6 for 976k/33k divider)
 
 #define BUTTON_PINS 8
 

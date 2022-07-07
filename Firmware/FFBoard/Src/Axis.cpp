@@ -470,20 +470,14 @@ void Axis::updateMetrics(float new_pos) { // pos is degrees
 	int32_t scaled_pos = scaleEncValue(new_pos, degreesOfRotation);
 	metric.current.pos = scaled_pos;
 
-	uint32_t ticks = HAL_GetTick();
-	uint32_t metric_delta = ticks - metric.previous.ticks;
-	if (metric_delta > 0 && metric_delta < 3)
-	{
-		metric.current.speedInstant = (new_pos - metric.previous.posDegrees) * 1000.0f; // deg/s
-		metric.current.accelInstant = metric.current.speedInstant - metric.previous.speedInstant;
-	}
+	metric.current.speedInstant = (new_pos - metric.previous.posDegrees) * 1000.0f; // deg/s
 
 	metric.current.speed = speedFilter.process(metric.current.speedInstant);
-	metric.current.accel = accelFilter.process(metric.current.accelInstant);
+
+	metric.current.accelInstant = metric.current.speedInstant - metric.previous.speedInstant;
+	metric.current.accel = accelFilter.process(metric.current.accelInstant); //accel_avg.getAverage(); //accel_avg.getAverage();
 
 	metric.current.torque = 0;
-
-	metric.current.ticks = ticks;
 
 //	if (calibrationInProgress) {
 //		calibMaxSpeedNormalized = abs(metric.current.speed) > calibMaxSpeedNormalized ? abs(metric.current.speed) : calibMaxSpeedNormalized;

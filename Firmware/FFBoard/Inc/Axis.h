@@ -55,7 +55,6 @@ struct AxisConfig
 	//bool invert = false;
 };
 struct metric_t {
-	uint32_t ticks = 0;
 	float accel = 0;	// in deg/s²
 	float accelInstant = 0;
 	float speed = 0;

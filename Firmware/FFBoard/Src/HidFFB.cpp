@@ -56,7 +56,7 @@ uint32_t HidFFB::getRate(){
 		hidPeriodAvg.clear();
 		return 0;
 	}else{
-		return (1000.0/periodAvg);
+		return (uint32_t)(1000.0f/periodAvg);
 	}
 }
 
