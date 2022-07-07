@@ -230,7 +230,7 @@ CommandStatus MotorMPM::command(const ParsedCommand& cmd,std::vector<CommandRepl
 		{
 			replies.emplace_back(
 					"OK ; Rdy=" + std::to_string(ready)
-					+ "; En=" + std::to_string(enabled)
+					+ "; En=" + std::to_string(HAL_GPIO_ReadPin(IN_ENABLE_GPIO_Port, IN_ENABLE_Pin))
 					+ "; SS=" + std::to_string(HAL_GPIO_ReadPin(MPM_SS_GPIO_Port, MPM_SS_Pin))
 					+ " (" + std::to_string(rotation) + " * " + std::to_string(CPR)
 					+ ") + " + std::to_string(encoderAngle)

@@ -55,6 +55,7 @@ struct AxisConfig
 	//bool invert = false;
 };
 struct metric_t {
+	uint32_t ticks = 0;
 	float accel = 0;	// in deg/s²
 	float accelInstant = 0;
 	float speed = 0;
@@ -134,18 +135,18 @@ public:
 	int32_t getLastScaledEnc();
 	void resetMetrics(float new_pos);
 	void updateMetrics(float new_pos);
-	int32_t updateIdleSpringForce();
+	float updateIdleSpringForce();
 	void setIdleSpringStrength(uint8_t spring);
 	void setDamperStrength(uint8_t damper);
 	void calculateAxisEffects(bool ffb_on);
 	int32_t getTorque(); // current torque scaled as a 32 bit signed value
-	int16_t updateEndstop();
+	float updateEndstop();
 
 	metric_t* getMetrics();
 	float 	 getSpeedScalerNormalized();
 	//float	 getAccelScalerNormalized();
 
-	void setEffectTorque(int32_t torque);
+	void setEffectTorque(float torque);
 	bool updateTorque(int32_t* totalTorque);
 
 
@@ -222,8 +223,8 @@ private:
 
 	// Merge normalized
 	axis_metric_t metric;
-	int32_t effectTorque = 0;
-	int32_t axisEffectTorque = 0;
+	float effectTorque = 0;
+	float axisEffectTorque = 0;
 	uint8_t fx_ratio_i = 204; // Reduce effects to a certain ratio of the total power to have a margin for the endstop. 80% = 204
 	uint16_t power = 2000;
 	float torqueScaler = 0; // power * fx_ratio as a ratio between 0 & 1
@@ -231,16 +232,15 @@ private:
 	uint8_t endstopStrength = 127; // Sets how much extra torque per count above endstop is added. High = stiff endstop. Low = softer
 	const float endstopGain = 50; // Overall max endstop intensity
 
-
 	uint8_t idlespringstrength = 127;
-	int16_t idlespringclip = 0;
-	float idlespringscale = 0;
+	float idlespringclip = 0.0f;
+	float idlespringscale = 0.0f;
 	bool idle_center = false;
 
-	float speed_f = 25 , speed_q = 0.6;
-	float accel_f = 120 , accel_q = 0.3;
-	const float filter_f = 1000; // 1khz
-	const int32_t damperClip = 10000;
+	float speed_f = 25.0f , speed_q = 0.6f;
+	float accel_f = 120.0f , accel_q = 0.3f;
+	const float filter_f = 1000.0f; // 1khz
+	const float damperClip = 10000.0f;
 	uint8_t damperIntensity = 30;
 	Biquad speedFilter = Biquad(BiquadType::lowpass, speed_f/filter_f, speed_q, 0.0);
 	Biquad accelFilter = Biquad(BiquadType::lowpass, accel_f/filter_f, accel_q, 0.0);

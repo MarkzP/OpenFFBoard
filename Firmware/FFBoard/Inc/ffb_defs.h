@@ -269,8 +269,8 @@ typedef struct
 {
 	volatile uint8_t state = 0;
 	uint8_t type = FFB_EFFECT_NONE; // Type
-	int16_t offset = 0;				// Center point
-	uint8_t gain = 255;				// Scaler. often unused
+	float offset = 0.0f;				// Center point
+	float gain = 1.0f;				// Scaler. often unused
 	int16_t magnitude = 0;			// High res intensity of effect
 	int16_t startLevel = 0;			// Ramp effect
 	int16_t endLevel = 0;			// Ramp effect

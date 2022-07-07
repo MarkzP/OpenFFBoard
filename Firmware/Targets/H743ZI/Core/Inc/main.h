@@ -85,6 +85,8 @@ void ExitDFU();
 #define STLINK_RX_GPIO_Port GPIOD
 #define STLINK_TX_Pin GPIO_PIN_9
 #define STLINK_TX_GPIO_Port GPIOD
+#define IN_ENABLE_Pin GPIO_PIN_2
+#define IN_ENABLE_GPIO_Port GPIOG
 #define MPM_SS_Pin GPIO_PIN_15
 #define MPM_SS_GPIO_Port GPIOA
 #define FLAG_Pin GPIO_PIN_2

@@ -302,7 +302,7 @@ void HidFFB::set_effect(FFB_SetEffect_t* effect){
 		set_filters(effect_p);
 	}
 
-	effect_p->gain = effect->gain;
+	effect_p->gain = (float)effect->gain / 255.0f;
 	effect_p->type = effect->effectType;
 	effect_p->samplePeriod = effect->samplePeriod;
 

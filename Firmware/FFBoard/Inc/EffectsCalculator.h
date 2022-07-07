@@ -66,31 +66,29 @@ private:
 	uint8_t directionEnableMask = 0;
 // Filters
 	bool effects_active = false; // was ffb_active
-	uint8_t global_gain = 0xff;
-	float damper_f = 30 , damper_q = 0.4;
-	float friction_f = 50 , friction_q = 0.2; //50 0.2
-	float inertia_f = 15 , inertia_q = 0.2;
+	float global_gain = 1.0f;
+	float damper_f = 30.0f , damper_q = 0.4f;
+	float friction_f = 50.0f , friction_q = 0.2f; //50 0.2
+	float inertia_f = 15.0f , inertia_q = 0.2f;
 	const uint32_t calcfrequency = 1000; // HID frequency 1khz
 	uint32_t cfFilter_f = calcfrequency/2; // 500 = off
 	uint8_t cfFilter_q = 70; // User settable. q * 10
-	const float cfFilter_qfloatScaler = 0.01;
+	const float cfFilter_qfloatScaler = 0.01f;
 
 	// Rescale factor for conditional effect to boost or decrease the intensity
 	const float spring_scaler = 16.0f;
-	const float friction_scaler = 0.4f;
+	const float friction_scaler = 2.0f;
 	const float damper_scaler = 2.0f;
 	const float inertia_scaler = 200.0f;
-	const int frictionPctSpeedToRampup = 5;										// define the max value of the range (0..5% of maxspeed) where torque is rampup on friction
-	const float speedRampupPct = (frictionPctSpeedToRampup / 100.0) * 32767;	// compute the normalizedSpeed of pctToRampup factor
 
 	effect_gain_t gain;
 
 	uint32_t effects_used = 0;
 
-	int32_t calcComponentForce(FFB_Effect *effect, int32_t forceVector, std::vector<std::unique_ptr<Axis>> &axes, uint8_t axis);
-	int32_t calcNonConditionEffectForce(FFB_Effect* effect);
-	int32_t calcConditionEffectForce(FFB_Effect *effect, float metric, uint8_t gain, uint8_t idx, float scale, float angle_ratio);
-	int32_t getEnvelopeMagnitude(FFB_Effect *effect);
+	float calcComponentForce(FFB_Effect *effect, float forceVector, std::vector<std::unique_ptr<Axis>> &axes, uint8_t axis);
+	float calcNonConditionEffectForce(FFB_Effect* effect);
+	float calcConditionEffectForce(FFB_Effect *effect, float metric, uint8_t gain, uint8_t idx, float scale, float angle_ratio);
+	float getEnvelopeMagnitude(FFB_Effect *effect);
 	std::string listEffectsUsed();
 };
 #endif /* EFFECTSCALCULATOR_H_ */
