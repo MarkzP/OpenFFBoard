@@ -7,6 +7,10 @@
 
 #ifndef SRC_LOCALANALOG_H_
 #define SRC_LOCALANALOG_H_
+
+#include "target_constants.h"
+#ifdef ANALOGAXES
+
 #include "AnalogSource.h"
 #include "PersistentStorage.h"
 #include "CommandHandler.h"
@@ -56,6 +60,6 @@ private:
 	LocalAnalogConfig aconf;
 };
 
-
+#endif
 
 #endif /* SRC_LOCALANALOG_H_ */

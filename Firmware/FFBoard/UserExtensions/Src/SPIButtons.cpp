@@ -4,7 +4,7 @@
  *  Created on: 11.02.2020
  *      Author: Yannick
  */
-
+#ifdef SPIBUTTONS
 #include <math.h>
 #include <tuple>
 
@@ -262,4 +262,5 @@ static std::tuple<uint16_t, uint16_t> encodeConfToInt(ButtonSourceConfig* c){
 	val |= (uint8_t)c->mode << 8;
 	return { val, c->cs_num & 0xF };
 }
+#endif
 

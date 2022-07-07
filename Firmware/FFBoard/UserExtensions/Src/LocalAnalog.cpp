@@ -5,6 +5,9 @@
  *      Author: Yannick
  */
 
+#include "target_constants.h"
+#ifdef ANALOGAXES
+
 #include "LocalAnalog.h"
 #include "global_callbacks.h"
 #include "flash_helpers.h"
@@ -137,3 +140,5 @@ uint16_t LocalAnalog::encodeAnalogConfToInt(LocalAnalogConfig conf){
 	val |= (conf.autorange & 0x1) << 8;
 	return val;
 }
+
+#endif

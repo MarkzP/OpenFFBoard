@@ -9,6 +9,7 @@
 #define GLOBAL_CALLBACKS_H_
 
 #include "main.h"
+#include "target_constants.h"
 
 #pragma once
 #ifdef __cplusplus
@@ -43,7 +44,10 @@ extern "C" {
 #endif
 
 void startADC();
+#if defined(ADC1_CHANNELS) || defined(ADC2_CHANNELS) || defined(ADC3_CHANNELS)
 volatile uint32_t* getAnalogBuffer(ADC_HandleTypeDef* hadc,uint8_t* chans); // Returns the DMA buffer for a hadc reference
+#endif
+
 void CDC_Callback(uint8_t* Buf, uint32_t *Len);
 void CDC_Finished();
 void USBD_OutEvent_HID(uint8_t* report);

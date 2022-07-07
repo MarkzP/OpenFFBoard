@@ -18,6 +18,7 @@
 #define FW_DEVID 0x413 // F407
 
 #include "main.h"
+#include "stm32f4xx_hal.h"
 
 // Enabled features
 

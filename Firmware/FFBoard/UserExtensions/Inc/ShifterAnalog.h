@@ -8,6 +8,9 @@
 #ifndef SHIFTERANALOG_H_
 #define SHIFTERANALOG_H_
 
+#include "target_constants.h"
+#ifdef ANALOGAXES
+
 #include <vector>
 
 #include "ButtonSource.h"
@@ -100,5 +103,7 @@ private:
 	void updateReverseState();
 	int getUserButtons(uint64_t* buf);
 };
+
+#endif
 
 #endif /* SHIFTERANALOG_H_ */

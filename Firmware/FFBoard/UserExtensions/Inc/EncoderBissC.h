@@ -8,6 +8,9 @@
 #ifndef ENCODERBISSC_H_
 #define ENCODERBISSC_H_
 
+#include "target_constants.h"
+#ifdef BISSENCODER
+
 #include "cppmain.h"
 #include "constants.h"
 #include "ChoosableClass.h"
@@ -75,5 +78,7 @@ private:
 	cpp_freertos::BinarySemaphore requestNewDataSem = cpp_freertos::BinarySemaphore(false);
 	cpp_freertos::BinarySemaphore waitForUpdateSem = cpp_freertos::BinarySemaphore(false);
 };
+
+#endif
 
 #endif /* ENCODERBISSC_H_ */

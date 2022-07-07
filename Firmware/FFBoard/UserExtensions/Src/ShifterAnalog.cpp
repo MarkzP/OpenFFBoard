@@ -5,6 +5,9 @@
  *      Author: Yannick
  */
 
+#include "target_constants.h"
+#ifdef ANALOGAXES
+
 #include <functional>
 
 #include "LocalButtons.h"
@@ -280,4 +283,6 @@ bool ShifterAnalog::G27ShifterButtonClient::getReverseButton() {
 uint16_t ShifterAnalog::G27ShifterButtonClient::getUserButtons() {
 	return buttonStates >> 4;
 }
+
+#endif
 

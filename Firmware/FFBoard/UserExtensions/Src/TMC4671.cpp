@@ -5,10 +5,16 @@
  *      Author: Yannick
  */
 
+#ifdef TMC4671DRIVER
+
 #include "TMC4671.h"
 #include "ledEffects.h"
 #include "voltagesense.h"
+#ifdef STM32H743xx
+#include "stm32h7xx_hal_spi.h"
+#else
 #include "stm32f4xx_hal_spi.h"
+#endif
 #include <math.h>
 #include <assert.h>
 #include "ErrorHandler.h"
@@ -175,8 +181,12 @@ void TMC4671::restoreFlash(){
 }
 
 bool TMC4671::hasPower(){
+#ifdef VSENSE
 	uint16_t intV = getIntV();
 	return (intV > 10000) && (getExtV() > 10000) && (intV < 78000);
+#else
+	return true;
+#endif
 }
 
 // Checks if important parameters are set to valid values
@@ -2470,7 +2480,9 @@ void TMC4671::setHwType(TMC_HW_Ver type){
 		break;
 	}
 	}
+#ifdef VSENSE_HADC
 	setVSenseMult(this->conf.hwconf.vSenseMult); // Update vsense multiplier
+#endif
 	//setupBrakePin(vdiffAct, vdiffDeact, vMax); // TODO if required
 	setBrakeLimits(this->conf.hwconf.brakeLimLow,this->conf.hwconf.brakeLimHigh);
 }
@@ -2832,4 +2844,4 @@ void TMC4671::TMC_ExternalEncoderUpdateThread::updateFromIsr(){
 	this->NotifyFromISR();
 }
 
-
+#endif

@@ -5,7 +5,12 @@
 #include "global_callbacks.h"
 #include "cpp_target_config.h"
 #include "cmsis_os.h"
+
+#ifdef STM32H743xx
+#include "stm32h7xx_hal_flash.h"
+#else
 #include "stm32f4xx_hal_flash.h"
+#endif
 
 #include "tusb.h"
 
@@ -19,9 +24,14 @@ extern IWDG_HandleTypeDef hiwdg; // Watchdog
 bool running = true;
 bool mainclassChosen = false;
 
-uint16_t main_id = 1;
+uint16_t main_id = 0;
 
+#ifdef STM32F407xx
 FFBoardMain* mainclass __attribute__((section (".ccmram")));
+#else
+FFBoardMain* mainclass;
+#endif
+
 ClassChooser<FFBoardMain> mainchooser(class_registry);
 
 
@@ -47,7 +57,11 @@ void cppmain() {
 	// Flash init
 	// TODO verify why or if flash does not erase or initialize correctly on some new chips
 	HAL_FLASH_Unlock();
+#ifdef STM32H743xx
+	__HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP | FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR | FLASH_FLAG_PGSERR | FLASH_FLAG_WRPERR);
+#else
 	__HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_PGPERR | FLASH_FLAG_PGSERR | FLASH_FLAG_BSY);
+#endif
 
 	if( EE_Init() != EE_OK){
 		Error_Handler();
@@ -65,15 +79,17 @@ void cppmain() {
 	HAL_FLASH_Lock();
 	// ------------------------
 
+#ifdef TIM_MICROS
 	TIM_MICROS.Instance->CR1 = 1; // Enable microsecond clock
+#endif
 
 	startADC(); // enable ADC DMA
 
 	// If switch pressed at boot select failsafe implementation
 	if(HAL_GPIO_ReadPin(BUTTON_A_GPIO_Port, BUTTON_A_Pin) == 1){
-		main_id = 1;
+		main_id = 0;
 	}else{
-		if(!Flash_ReadWriteDefault(ADR_CURRENT_CONFIG, &main_id,1)){
+		if(!Flash_ReadWriteDefault(ADR_CURRENT_CONFIG, &main_id,0)){
 			Error_Handler();
 		}
 	}
@@ -102,11 +118,12 @@ void refreshWatchdog(){
 }
 
 
-
+#ifdef TIM_MICROS
 uint32_t micros(){
 	//return DWT->CYCCNT / clkmhz;
 	return TIM_MICROS.Instance->CNT;
 }
+#endif
 
 
 void* malloc(size_t size)
@@ -119,7 +136,8 @@ void free(void *p)
     vPortFree(p);
 }
 
+#ifdef TIM_MICROS
 unsigned long getRunTimeCounterValue(void){
 	return micros();
 }
-
+#endif

@@ -232,6 +232,7 @@ void Axis::setPower(uint16_t power)
 {
 	this->power = power;
 	updateTorqueScaler();
+#ifdef TMC4671DRIVER
 	// Update hardware limits for TMC for safety
 	TMC4671 *drv = dynamic_cast<TMC4671 *>(this->drv.get());
 	if (drv != nullptr)
@@ -240,6 +241,7 @@ void Axis::setPower(uint16_t power)
 		//tmclimits.pid_torque_flux = power;
 		drv->setTorqueLimit(power);
 	}
+#endif
 }
 
 
@@ -264,10 +266,12 @@ void Axis::setDrvType(uint8_t drvtype)
 		this->drv->setEncoder(this->enc);
 	}
 
+#ifdef TMC4671DRIVER
 	if (dynamic_cast<TMC4671 *>(drv))
 	{
 		setupTMC4671();
 	}
+#endif
 
 	if (!tud_connected())
 	{
@@ -280,6 +284,7 @@ void Axis::setDrvType(uint8_t drvtype)
 	}
 }
 
+#ifdef TMC4671DRIVER
 // Special tmc setup methods
 void Axis::setupTMC4671()
 {
@@ -297,6 +302,7 @@ void Axis::setupTMC4671()
 	drv->setMotionMode(MotionMode::torque);
 	drv->Start(); // Start thread
 }
+#endif
 
 
 
@@ -346,7 +352,7 @@ int32_t Axis::scaleEncValue(float angle, uint16_t degrees){
  */
 float Axis::getEncAngle(Encoder *enc){
 	if(enc != nullptr){
-		float pos = 360.0 * enc->getPos_f();
+		float pos = 360.0f * enc->getPos_f();
 		if (isInverted()){
 			pos= -pos;
 		}
@@ -442,7 +448,6 @@ void Axis::calculateAxisEffects(bool ffb_on){
 
 void Axis::setFxRatio(uint8_t val) {
 	fx_ratio_i = val;
-	updateTorqueScaler();
 }
 
 
@@ -487,8 +492,7 @@ uint16_t Axis::getPower(){
 }
 
 void  Axis::updateTorqueScaler() {
-	float effect_margin_scaler = ((float)fx_ratio_i/255.0);
-	torqueScaler = ((float)power / (float)0x7fff) * effect_margin_scaler;
+	torqueScaler = ((float)power / (float)0x7fff);
 }
 
 float Axis::getTorqueScaler(){
@@ -514,7 +518,7 @@ int16_t Axis::updateEndstop(){
 	addtorque *= (float)endstopStrength * endstopGain * torqueScaler; // Apply endstop gain for stiffness.
 	addtorque *= -clipdir;
 
-	addtorque -= metric.current.speed * 5.0f;
+	addtorque -= metric.current.speed * (float)((fx_ratio_i - 102) / 4);
 
 	return clip<int32_t,int32_t>(addtorque,-0x7fff,0x7fff);
 }
