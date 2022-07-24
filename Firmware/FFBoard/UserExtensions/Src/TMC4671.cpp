@@ -10,7 +10,7 @@
 #include "TMC4671.h"
 #include "ledEffects.h"
 #include "voltagesense.h"
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
 #include "stm32h7xx_hal_spi.h"
 #else
 #include "stm32f4xx_hal_spi.h"

@@ -6,7 +6,7 @@
 #include "cpp_target_config.h"
 #include "cmsis_os.h"
 
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
 #include "stm32h7xx_hal_flash.h"
 #else
 #include "stm32f4xx_hal_flash.h"
@@ -57,7 +57,7 @@ void cppmain() {
 	// Flash init
 	// TODO verify why or if flash does not erase or initialize correctly on some new chips
 	HAL_FLASH_Unlock();
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
 	__HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP | FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR | FLASH_FLAG_PGSERR | FLASH_FLAG_WRPERR);
 #else
 	__HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_PGPERR | FLASH_FLAG_PGSERR | FLASH_FLAG_BSY);

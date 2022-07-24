@@ -140,6 +140,7 @@ void EffectsCalculator::calculateEffects(std::vector<std::unique_ptr<Axis>> &axe
 		forceVector = calcNonConditionEffectForce(effect);
 		//}
 
+
 		uint8_t directionEnableMask = this->directionEnableMask ? this->directionEnableMask : DIRECTION_ENABLE(axisCount);
 
 		if (effect->enableAxis & directionEnableMask || (effect->enableAxis & X_AXIS_ENABLE))

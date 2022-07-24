@@ -12,7 +12,7 @@
 
 #define CPR	(1 << 16)
 
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
 extern SPI_HandleTypeDef hspi3;
 #else
 extern SPI_HandleTypeDef hspi1;
@@ -43,7 +43,7 @@ MotorMPM::MotorMPM() : CommandHandler("mpmdrv", CLSID_MOT_MPM)
 	aligned = false;
 	torque = 0;
 
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
 	spi = &hspi3;
 #else
 	spi = &hspi1;
@@ -171,7 +171,7 @@ void MotorMPM::exti(uint16_t GPIO_Pin)
 
 	if (!ready) return;
 
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
 	spiTx = torque;
 
 	if (HAL_SPI_TransmitReceive_IT(spi, (uint8_t*)(&spiTx), (uint8_t*)(&spiRx), 1) != HAL_OK)
@@ -193,7 +193,7 @@ void MotorMPM::SpiTxRxCplt(SPI_HandleTypeDef *hspi)
 {
 	if (hspi != spi) return;
 
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
 	rawPosition = spiRx;
 #else
 	rawPosition = __builtin_bswap16(spiRx);
@@ -209,7 +209,7 @@ void MotorMPM::SpiError(SPI_HandleTypeDef *hspi)
 {
 	if (hspi != spi) return;
 
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
 	HAL_SPI_Abort_IT(spi);
 #else
 #endif

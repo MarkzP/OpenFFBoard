@@ -36,8 +36,11 @@
 
 // defined by board.mk
 
-#ifdef STM32H743xx
+#if defined(STM32H743xx)
 #define CFG_TUSB_MCU OPT_MCU_STM32H7 // target config
+#elif defined(STM32H723xx)
+#define CFG_TUSB_MCU OPT_MCU_STM32H7 // target config
+#define BOARD_DEVICE_RHPORT_SPEED   OPT_MODE_HIGH_SPEED
 #else
 #define CFG_TUSB_MCU OPT_MCU_STM32F4 // target config
 #endif
@@ -62,7 +65,7 @@
 #endif
 
 // Device mode with rhport and speed defined by board.mk
-#define CFG_TUSB_RHPORT0_MODE     (OPT_MODE_DEVICE | BOARD_DEVICE_RHPORT_SPEED)
+#define CFG_TUSB_RHPORT1_MODE     (OPT_MODE_DEVICE | BOARD_DEVICE_RHPORT_SPEED)
 
 
 #define CFG_TUSB_OS               OPT_OS_FREERTOS

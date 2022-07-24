@@ -254,7 +254,7 @@ void HidFFB::set_constant_effect(FFB_SetConstantForce_Data_t* data){
 	FFB_Effect& effect_p = effects[data->effectBlockIndex-1];
 
 	effect_p.magnitude = data->magnitude;
-//	if(effect_p.state == 0){
+	//	if(effect_p.state == 0){
 //		effect_p.state = 1; // Force start effect
 //	}
 }
@@ -321,7 +321,7 @@ void HidFFB::set_effect(FFB_SetEffect_t* effect){
 	if(!ffb_active)
 		start_FFB();
 	sendStatusReport(effect->effectBlockIndex); // TODO required?
-	//CommandHandler::logSerialDebug("Setting Effect: " + std::to_string(effect->effectType) +  " at " + std::to_string(index) + "\n");
+	//CommandHandler::logSerialDebug("Setting Effect: " + std::to_string(effect->effectType) + " g=" + std::to_string(effect->gain)  + " s=" + std::to_string(effect->startDelay) + " d=" + std::to_string(effect->duration) + " at " + std::to_string(index - 1));
 }
 
 void HidFFB::set_condition(FFB_SetCondition_Data_t *cond){
@@ -355,10 +355,11 @@ void HidFFB::set_effect_operation(FFB_EffOp_Data_t* report){
 	// Start or stop effect
 	uint8_t id = report->effectBlockIndex-1;
 	if(report->state == 3){
-		effects[id].state = 0; //Stop
+
 #ifdef DEBUGLOG
-		CommandHandler::logSerialDebug("Stop effect: " + std::to_string(id));
+		if (effects[id].state != 0) CommandHandler::logSerialDebug("Stop effect: " + std::to_string(id));
 #endif
+		effects[id].state = 0; //Stop
 
 	}else{
 
@@ -375,7 +376,7 @@ void HidFFB::set_effect_operation(FFB_EffOp_Data_t* report){
 			set_filters(&effects[id]);
 		}
 #ifdef DEBUGLOG
-		CommandHandler::logSerialDebug("Start effect: " + std::to_string(id));
+		if (effects[id].state != 1) CommandHandler::logSerialDebug("Start effect: " + std::to_string(id));
 #endif
 		effects[id].startTime = HAL_GetTick() + effects[id].startDelay; // + effects[id].startDelay;
 		effects[id].state = 1; //Start
@@ -392,6 +393,10 @@ void HidFFB::set_envelope(FFB_SetEnvelope_Data_t *report){
 	}
 	FFB_Effect *effect = &effects[report->effectBlockIndex - 1];
 
+#ifdef DEBUGLOG
+	CommandHandler::logSerialDebug("Set envelope " + std::to_string(report->effectBlockIndex - 1));
+#endif
+
 	effect->attackLevel = report->attackLevel;
 	effect->attackTime = report->attackTime;
 	effect->fadeLevel = report->fadeLevel;
@@ -403,6 +408,11 @@ void HidFFB::set_ramp(FFB_SetRamp_Data_t *report){
 		return;
 	}
 	FFB_Effect *effect = &effects[report->effectBlockIndex - 1];
+
+#ifdef DEBUGLOG
+	CommandHandler::logSerialDebug("Set ramp " + std::to_string(report->effectBlockIndex - 1));
+#endif
+
 	effect->magnitude = 0x7fff; // Full magnitude for envelope calculation. This effect does not have a periodic report
 	effect->startLevel = report->startLevel;
 	effect->endLevel = report->endLevel;

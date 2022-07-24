@@ -84,7 +84,7 @@ uint16_t EE_Init(void)
   HAL_StatusTypeDef  FlashStatus;
   uint32_t SectorError = 0;
   FLASH_EraseInitTypeDef pEraseInit;
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
   uint32_t valid[8] = {0x0000};
 #endif
 
@@ -95,8 +95,10 @@ uint16_t EE_Init(void)
   PageStatus1 = (*(__IO uint16_t*)PAGE1_BASE_ADDRESS);
 
   pEraseInit.TypeErase = TYPEERASE_SECTORS;
-#ifdef STM32H743xx
+#if defined(STM32H743xx)
   pEraseInit.Banks = FLASH_BANK_2 ;
+#elif defined(STM32H723xx)
+  pEraseInit.Banks = FLASH_BANK_1 ;
 #endif
   pEraseInit.Sector = PAGE0_ID;
   pEraseInit.NbSectors = 1;
@@ -132,7 +134,7 @@ uint16_t EE_Init(void)
           }
         }
         /* Mark Page1 as valid */
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
         FlashStatus = HAL_FLASH_Program(FLASH_TYPEPROGRAM_FLASHWORD, PAGE1_BASE_ADDRESS, ((uint32_t)valid));
 #else
 		FlashStatus = HAL_FLASH_Program(TYPEPROGRAM_HALFWORD, PAGE1_BASE_ADDRESS, VALID_PAGE);
@@ -183,7 +185,7 @@ uint16_t EE_Init(void)
           }
         }
         /* Mark Page0 as valid */
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
         FlashStatus = HAL_FLASH_Program(FLASH_TYPEPROGRAM_FLASHWORD, PAGE0_BASE_ADDRESS, ((uint32_t)valid));
 #else
 		FlashStatus = HAL_FLASH_Program(TYPEPROGRAM_HALFWORD, PAGE0_BASE_ADDRESS, VALID_PAGE);
@@ -194,8 +196,10 @@ uint16_t EE_Init(void)
           return FlashStatus;
         }
         pEraseInit.Sector = PAGE1_ID;
-#ifdef STM32H743xx
+#if defined(STM32H743xx)
         pEraseInit.Banks = FLASH_BANK_2 ;
+#elif defined(STM32H723xx)
+        pEraseInit.Banks = FLASH_BANK_1 ;
 #endif
         pEraseInit.NbSectors = 1;
         pEraseInit.VoltageRange = VOLTAGE_RANGE;
@@ -213,7 +217,7 @@ uint16_t EE_Init(void)
       else if (PageStatus1 == ERASED) /* Page0 receive, Page1 erased */
       {
         pEraseInit.Sector = PAGE1_ID;
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
         pEraseInit.Banks = FLASH_BANK_1 ;
 #endif
         pEraseInit.NbSectors = 1;
@@ -229,7 +233,7 @@ uint16_t EE_Init(void)
           }
         }
         /* Mark Page0 as valid */
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
         FlashStatus = HAL_FLASH_Program(FLASH_TYPEPROGRAM_FLASHWORD, PAGE0_BASE_ADDRESS, ((uint32_t)valid));
 #else
         FlashStatus = HAL_FLASH_Program(TYPEPROGRAM_HALFWORD, PAGE0_BASE_ADDRESS, VALID_PAGE);
@@ -266,8 +270,10 @@ uint16_t EE_Init(void)
       else if (PageStatus1 == ERASED) /* Page0 valid, Page1 erased */
       {
         pEraseInit.Sector = PAGE1_ID;
-#ifdef STM32H743xx
+#if defined(STM32H743xx)
         pEraseInit.Banks = FLASH_BANK_2 ;
+#elif defined(STM32H723xx)
+        pEraseInit.Banks = FLASH_BANK_1 ;
 #endif
         pEraseInit.NbSectors = 1;
         pEraseInit.VoltageRange = VOLTAGE_RANGE;
@@ -309,7 +315,7 @@ uint16_t EE_Init(void)
           }
         }
         /* Mark Page1 as valid */
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
         FlashStatus = HAL_FLASH_Program(FLASH_TYPEPROGRAM_FLASHWORD, PAGE1_BASE_ADDRESS, ((uint32_t)valid));
 #else
         FlashStatus = HAL_FLASH_Program(TYPEPROGRAM_HALFWORD, PAGE1_BASE_ADDRESS, VALID_PAGE);
@@ -320,8 +326,10 @@ uint16_t EE_Init(void)
           return FlashStatus;
         }
         pEraseInit.Sector = PAGE0_ID;
-#ifdef STM32H743xx
+#if defined(STM32H743xx)
         pEraseInit.Banks = FLASH_BANK_2 ;
+#elif defined(STM32H723xx)
+        pEraseInit.Banks = FLASH_BANK_1 ;
 #endif
         pEraseInit.NbSectors = 1;
         pEraseInit.VoltageRange = VOLTAGE_RANGE;
@@ -419,14 +427,14 @@ uint16_t EE_ReadVariable(uint16_t VirtAddress, uint16_t* Data)
   PageStartAddress = (uint32_t)(EEPROM_START_ADDRESS + (uint32_t)(ValidPage * PAGE_SIZE));
 
   /* Get the valid Page end Address */
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
   Address = (uint32_t)((EEPROM_START_ADDRESS - 32) + (uint32_t)((1 + ValidPage) * PAGE_SIZE));
 #else
   Address = (uint32_t)((EEPROM_START_ADDRESS - 2) + (uint32_t)((1 + ValidPage) * PAGE_SIZE));
 #endif
 
   /* Check each active page address starting from end */
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
   while (Address > (PageStartAddress + 32))
 #else
   while (Address > (PageStartAddress + 2))
@@ -439,7 +447,7 @@ uint16_t EE_ReadVariable(uint16_t VirtAddress, uint16_t* Data)
     if (AddressValue == VirtAddress)
     {
       /* Get content of Address-2 which is variable value */
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
       *Data = (*(__IO uint16_t*)(Address - 32));
 #else
       *Data = (*(__IO uint16_t*)(Address - 2));
@@ -453,7 +461,7 @@ uint16_t EE_ReadVariable(uint16_t VirtAddress, uint16_t* Data)
     else
     {
       /* Next address location */
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
       Address = Address - 64;
 #else
       Address = Address - 4;
@@ -504,13 +512,15 @@ HAL_StatusTypeDef EE_Format(void)
   HAL_StatusTypeDef FlashStatus = HAL_OK;
   uint32_t SectorError = 0;
   FLASH_EraseInitTypeDef pEraseInit;
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
   uint32_t valid[8] = {0x0000};
 #endif
 
   pEraseInit.TypeErase = FLASH_TYPEERASE_SECTORS;
-#ifdef STM32H743xx
+#if defined(STM32H743xx)
   pEraseInit.Banks = FLASH_BANK_2 ;
+#elif  defined(STM32H723xx)
+  pEraseInit.Banks = FLASH_BANK_1 ;
 #endif
   pEraseInit.Sector = PAGE0_ID;
   pEraseInit.NbSectors = 1;
@@ -526,7 +536,7 @@ HAL_StatusTypeDef EE_Format(void)
     }
   }
   /* Set Page0 as valid page: Write VALID_PAGE at Page0 base address */
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
   FlashStatus = HAL_FLASH_Program(FLASH_TYPEPROGRAM_FLASHWORD, PAGE0_BASE_ADDRESS,((uint32_t)valid));
 #else
   FlashStatus = HAL_FLASH_Program(TYPEPROGRAM_HALFWORD, PAGE0_BASE_ADDRESS, VALID_PAGE); 
@@ -638,7 +648,7 @@ static uint16_t EE_VerifyPageFullWriteVariable(uint16_t VirtAddress, uint16_t Da
   HAL_StatusTypeDef FlashStatus = HAL_OK;
   uint16_t ValidPage = PAGE0;
   uint32_t Address = EEPROM_START_ADDRESS, PageEndAddress = EEPROM_START_ADDRESS+PAGE_SIZE;
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
   uint32_t data32[8] = {Data};
   uint32_t VirtAddress1[8] = {VirtAddress};
 #endif
@@ -664,7 +674,7 @@ static uint16_t EE_VerifyPageFullWriteVariable(uint16_t VirtAddress, uint16_t Da
     if ((*(__IO uint32_t*)Address) == 0xFFFFFFFF)
     {
       /* Set variable data */
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
       FlashStatus = HAL_FLASH_Program(FLASH_TYPEPROGRAM_FLASHWORD, Address, ((uint32_t)data32));
 #else
       FlashStatus = HAL_FLASH_Program(TYPEPROGRAM_HALFWORD, Address, Data);       
@@ -675,7 +685,7 @@ static uint16_t EE_VerifyPageFullWriteVariable(uint16_t VirtAddress, uint16_t Da
         return FlashStatus;
       }
       /* Set variable virtual address */
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
      FlashStatus = HAL_FLASH_Program(FLASH_TYPEPROGRAM_FLASHWORD, Address + 32, ((uint32_t)VirtAddress1));
 #else
 	 FlashStatus = HAL_FLASH_Program(TYPEPROGRAM_HALFWORD, Address + 2, VirtAddress);
@@ -686,7 +696,7 @@ static uint16_t EE_VerifyPageFullWriteVariable(uint16_t VirtAddress, uint16_t Da
     else
     {
       /* Next address location */
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
       Address = Address + 64;
 #else
       Address = Address + 4;
@@ -718,7 +728,7 @@ static uint16_t EE_PageTransfer(uint16_t VirtAddress, uint16_t Data)
   uint16_t EepromStatus = 0, ReadStatus = 0;
   uint32_t SectorError = 0;
   FLASH_EraseInitTypeDef pEraseInit;
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
   uint32_t valid[8] = {0x0000};
   uint32_t receive[8] = {0xEEEE};
 #endif
@@ -747,7 +757,7 @@ static uint16_t EE_PageTransfer(uint16_t VirtAddress, uint16_t Data)
   }
 
   /* Set the new Page status to RECEIVE_DATA status */
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
   FlashStatus = HAL_FLASH_Program(FLASH_TYPEPROGRAM_FLASHWORD, NewPageAddress, ((uint32_t)receive));
 #else
   FlashStatus = HAL_FLASH_Program(TYPEPROGRAM_HALFWORD, NewPageAddress, RECEIVE_DATA); 
@@ -787,7 +797,7 @@ static uint16_t EE_PageTransfer(uint16_t VirtAddress, uint16_t Data)
       }
     }
   }
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
   HAL_FLASH_Unlock();
 
   /* Clear pending flags (if any) */
@@ -795,8 +805,10 @@ static uint16_t EE_PageTransfer(uint16_t VirtAddress, uint16_t Data)
                          FLASH_FLAG_PGSERR | FLASH_FLAG_WRPERR);
 #endif
   pEraseInit.TypeErase = TYPEERASE_SECTORS;
-#ifdef STM32H743xx
+#if defined(STM32H743xx)
   pEraseInit.Banks = FLASH_BANK_2 ;
+#elif defined(STM32H723xx)
+  pEraseInit.Banks = FLASH_BANK_1 ;
 #endif
   pEraseInit.Sector = OldPageId;
   pEraseInit.NbSectors = 1;
@@ -811,7 +823,7 @@ static uint16_t EE_PageTransfer(uint16_t VirtAddress, uint16_t Data)
   }
 
   /* Set new Page status to VALID_PAGE status */
-#ifdef STM32H743xx
+#if defined(STM32H743xx) || defined(STM32H723xx)
   FlashStatus = HAL_FLASH_Program(FLASH_TYPEPROGRAM_FLASHWORD, NewPageAddress, ((uint32_t)valid));
 #else
   FlashStatus = HAL_FLASH_Program(TYPEPROGRAM_HALFWORD, NewPageAddress, VALID_PAGE);
