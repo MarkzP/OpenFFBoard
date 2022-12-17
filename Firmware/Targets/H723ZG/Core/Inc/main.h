@@ -52,6 +52,7 @@ extern "C" {
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
+void   MX_USB_OTG_HS_PCD_Init(void);
 
 /* USER CODE BEGIN EFP */
 void RebootDFU();
@@ -89,8 +90,8 @@ void ExitDFU();
 #define STLK_VCP_TX_GPIO_Port GPIOD
 #define USB_FS_PWR_EN_Pin GPIO_PIN_10
 #define USB_FS_PWR_EN_GPIO_Port GPIOD
-#define IN_ENABLE_Pin GPIO_PIN_2
-#define IN_ENABLE_GPIO_Port GPIOG
+#define OUT_MPM_SS_Pin GPIO_PIN_2
+#define OUT_MPM_SS_GPIO_Port GPIOG
 #define USB_FS_OVCR_Pin GPIO_PIN_7
 #define USB_FS_OVCR_GPIO_Port GPIOG
 #define USB_FS_VBUS_Pin GPIO_PIN_9
@@ -103,16 +104,14 @@ void ExitDFU();
 #define SWDIO_GPIO_Port GPIOA
 #define SWCLK_Pin GPIO_PIN_14
 #define SWCLK_GPIO_Port GPIOA
-#define MPM_SS_Pin GPIO_PIN_15
-#define MPM_SS_GPIO_Port GPIOA
-#define FLAG_Pin GPIO_PIN_2
-#define FLAG_GPIO_Port GPIOD
-#define FLAG_EXTI_IRQn EXTI2_IRQn
+#define IN_MPM_INT_Pin GPIO_PIN_2
+#define IN_MPM_INT_GPIO_Port GPIOD
+#define IN_MPM_INT_EXTI_IRQn EXTI2_IRQn
 #define SWO_Pin GPIO_PIN_3
 #define SWO_GPIO_Port GPIOB
 #define LED_CLIP_Pin GPIO_PIN_1
 #define LED_CLIP_GPIO_Port GPIOE
-void   MX_USB_OTG_HS_PCD_Init(void);
+
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

@@ -15,7 +15,7 @@
 // Hardware name string
 #define HW_TYPE "H723ZG"
 #define HW_TYPE_INT 7
-#define FW_DEVID 0x450 // H723
+#define FW_DEVID 0x483 // H723
 
 #include "main.h"
 #include "stm32h7xx_hal.h"
@@ -127,8 +127,8 @@ extern const uint32_t canSpeedBTR_preset[];
  * */
 #define PAGE0_ID               FLASH_SECTOR_6
 #define PAGE1_ID               FLASH_SECTOR_7
-#define EEPROM_START_ADDRESS   (uint32_t)0x081C0000  /* EEPROM emulation start address: from sector1*/
-#define PAGE_SIZE             (uint32_t)0x20000  /* Page size = 16KByte */
+#define EEPROM_START_ADDRESS   (uint32_t)0x080F8000  /* EEPROM emulation start address: from sector1*/
+#define PAGE_SIZE             (uint32_t)0x4000  /* Page size = 16KByte */
 
 
 // System

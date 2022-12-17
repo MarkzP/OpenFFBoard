@@ -117,11 +117,7 @@ int main(void)
   MX_SPI3_Init();
   /* USER CODE BEGIN 2 */
   HAL_GPIO_WritePin(LED_ERR_GPIO_Port, LED_ERR_Pin, GPIO_PIN_SET);
-#ifdef STM32H723xx
   MX_USB_OTG_HS_PCD_Init();
-#else
-  MX_USB_OTG_FS_PCD_Init();
-#endif
   HAL_Delay(100);
   /* USER CODE END 2 */
 
@@ -388,7 +384,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(USB_FS_PWR_EN_GPIO_Port, USB_FS_PWR_EN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(MPM_SS_GPIO_Port, MPM_SS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(OUT_MPM_SS_GPIO_Port, OUT_MPM_SS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_CLIP_GPIO_Port, LED_CLIP_Pin, GPIO_PIN_RESET);
@@ -421,11 +417,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(USB_FS_PWR_EN_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : IN_ENABLE_Pin */
-  GPIO_InitStruct.Pin = IN_ENABLE_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(IN_ENABLE_GPIO_Port, &GPIO_InitStruct);
+  /*Configure GPIO pin : OUT_MPM_SS_Pin */
+  GPIO_InitStruct.Pin = OUT_MPM_SS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(OUT_MPM_SS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : USB_FS_OVCR_Pin */
   GPIO_InitStruct.Pin = USB_FS_OVCR_Pin;
@@ -433,18 +430,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(USB_FS_OVCR_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : MPM_SS_Pin */
-  GPIO_InitStruct.Pin = MPM_SS_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  HAL_GPIO_Init(MPM_SS_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : FLAG_Pin */
-  GPIO_InitStruct.Pin = FLAG_Pin;
+  /*Configure GPIO pin : IN_MPM_INT_Pin */
+  GPIO_InitStruct.Pin = IN_MPM_INT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(FLAG_GPIO_Port, &GPIO_InitStruct);
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(IN_MPM_INT_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LED_CLIP_Pin */
   GPIO_InitStruct.Pin = LED_CLIP_Pin;
@@ -454,7 +444,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(LED_CLIP_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI2_IRQn, 13, 0);
+  HAL_NVIC_SetPriority(EXTI2_IRQn, 15, 0);
   HAL_NVIC_EnableIRQ(EXTI2_IRQn);
 
 }
@@ -505,7 +495,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
   /* USER CODE BEGIN Callback 1 */
   else{
-	  //HAL_TIM_PeriodElapsedCallback_CPP(htim);
+	  HAL_TIM_PeriodElapsedCallback_CPP(htim);
   }
   /* USER CODE END Callback 1 */
 }

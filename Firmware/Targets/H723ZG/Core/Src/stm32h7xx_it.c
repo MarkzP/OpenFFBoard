@@ -172,7 +172,7 @@ void EXTI2_IRQHandler(void)
   /* USER CODE BEGIN EXTI2_IRQn 0 */
 
   /* USER CODE END EXTI2_IRQn 0 */
-  HAL_GPIO_EXTI_IRQHandler(FLAG_Pin);
+  HAL_GPIO_EXTI_IRQHandler(IN_MPM_INT_Pin);
   /* USER CODE BEGIN EXTI2_IRQn 1 */
 
   /* USER CODE END EXTI2_IRQn 1 */
@@ -226,7 +226,7 @@ void TIM7_IRQHandler(void)
 void OTG_HS_IRQHandler(void)
 {
   /* USER CODE BEGIN OTG_HS_IRQn 0 */
-
+	tud_int_handler(0);
   /* USER CODE END OTG_HS_IRQn 0 */
   /* USER CODE BEGIN OTG_HS_IRQn 1 */
 
