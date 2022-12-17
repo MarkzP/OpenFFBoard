@@ -444,7 +444,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(LED_CLIP_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI2_IRQn, 15, 0);
+  HAL_NVIC_SetPriority(EXTI2_IRQn, 13, 0);
   HAL_NVIC_EnableIRQ(EXTI2_IRQn);
 
 }

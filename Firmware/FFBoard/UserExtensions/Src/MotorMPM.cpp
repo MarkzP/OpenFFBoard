@@ -113,7 +113,7 @@ int32_t MotorMPM::getPos()
 
 		positionChanged = false;
 
-		HAL_GPIO_WritePin(OUT_MPM_SS_GPIO_Port, OUT_MPM_SS_Pin, GPIO_PIN_SET);
+		if (ready) HAL_GPIO_WritePin(OUT_MPM_SS_GPIO_Port, OUT_MPM_SS_Pin, GPIO_PIN_SET);
 
 		if (aligned)
 		{
@@ -149,7 +149,7 @@ void MotorMPM::setPos(int32_t pos)
 	rotation = 0;
 	offset = pos - encoderAngle;
 
-	HAL_GPIO_WritePin(OUT_MPM_SS_GPIO_Port, OUT_MPM_SS_Pin, GPIO_PIN_SET);
+	if (ready) HAL_GPIO_WritePin(OUT_MPM_SS_GPIO_Port, OUT_MPM_SS_Pin, GPIO_PIN_SET);
 }
 
 
@@ -163,14 +163,13 @@ void MotorMPM::exti(uint16_t GPIO_Pin)
 {
 	if (GPIO_Pin != IN_MPM_INT_Pin) return;
 
+	HAL_GPIO_WritePin(OUT_MPM_SS_GPIO_Port, OUT_MPM_SS_Pin, GPIO_PIN_RESET);
+
 	if (!ready) return;
 
 	spiTx = torque;
 
-	if (HAL_SPI_TransmitReceive_IT(spi, (uint8_t*)(&spiTx), (uint8_t*)(&spiRx), 1) != HAL_OK)
-	{
-		HAL_GPIO_WritePin(OUT_MPM_SS_GPIO_Port, OUT_MPM_SS_Pin, GPIO_PIN_RESET);
-	}
+	HAL_SPI_TransmitReceive_IT(spi, (uint8_t*)(&spiTx), (uint8_t*)(&spiRx), 1);
 }
 
 
@@ -181,8 +180,6 @@ void MotorMPM::SpiTxRxCplt(SPI_HandleTypeDef *hspi)
 	rawPosition = spiRx;
 
 	positionChanged = true;
-
-	HAL_GPIO_WritePin(OUT_MPM_SS_GPIO_Port, OUT_MPM_SS_Pin, GPIO_PIN_RESET);
 }
 
 
@@ -193,8 +190,6 @@ void MotorMPM::SpiError(SPI_HandleTypeDef *hspi)
 	HAL_SPI_Abort_IT(spi);
 
 	positionChanged = true;
-
-	HAL_GPIO_WritePin(OUT_MPM_SS_GPIO_Port, OUT_MPM_SS_Pin, GPIO_PIN_RESET);
 }
 
 
@@ -208,6 +203,7 @@ CommandStatus MotorMPM::command(const ParsedCommand& cmd,std::vector<CommandRepl
 		{
 			replies.emplace_back(
 					"OK ; Rdy=" + std::to_string(ready)
+					+ "; Enabled=" + std::to_string(enabled)
 					+ "; SS=" + std::to_string(HAL_GPIO_ReadPin(OUT_MPM_SS_GPIO_Port, OUT_MPM_SS_Pin))
 					+ " (" + std::to_string(rotation) + " * " + std::to_string(CPR)
 					+ ") + " + std::to_string(encoderAngle)
