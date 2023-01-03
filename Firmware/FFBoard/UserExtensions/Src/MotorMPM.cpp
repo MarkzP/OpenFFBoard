@@ -79,7 +79,7 @@ void MotorMPM::turn(int16_t power)
 {
 	torque = enabled ? power : 0;
 
-	HAL_GPIO_WritePin(OUT_MPM_SS_GPIO_Port, OUT_MPM_SS_Pin, GPIO_PIN_SET);
+	if (ready) HAL_GPIO_WritePin(OUT_MPM_SS_GPIO_Port, OUT_MPM_SS_Pin, GPIO_PIN_SET);
 }
 
 

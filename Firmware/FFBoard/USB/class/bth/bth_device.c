@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if (CFG_TUD_ENABLED && CFG_TUD_BTH)
+#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_BTH)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -59,12 +59,10 @@ CFG_TUSB_MEM_SECTION btd_interface_t _btd_itf;
 
 static bool bt_tx_data(uint8_t ep, void *data, uint16_t len)
 {
-  uint8_t const rhport = 0;
-
   // skip if previous transfer not complete
-  TU_VERIFY(!usbd_edpt_busy(rhport, ep));
+  TU_VERIFY(!usbd_edpt_busy(TUD_OPT_RHPORT, ep));
 
-  TU_ASSERT(usbd_edpt_xfer(rhport, ep, data, len));
+  TU_ASSERT(usbd_edpt_xfer(TUD_OPT_RHPORT, ep, data, len));
 
   return true;
 }

@@ -109,8 +109,8 @@
 #define STM32F1_FSDEV
 #endif
 
-#if CFG_TUD_ENABLED && \
-      ( TU_CHECK_MCU(OPT_MCU_STM32F0, OPT_MCU_STM32F3, OPT_MCU_STM32L0, OPT_MCU_STM32L1, OPT_MCU_STM32G4, OPT_MCU_STM32WB) || \
+#if TUSB_OPT_DEVICE_ENABLED && \
+      ( TU_CHECK_MCU(OPT_MCU_STM32F0, OPT_MCU_STM32F3, OPT_MCU_STM32L0, OPT_MCU_STM32L1, OPT_MCU_STM32G4) || \
         (TU_CHECK_MCU(OPT_MCU_STM32F1) && defined(STM32F1_FSDEV)) \
       )
 
@@ -287,14 +287,6 @@ void dcd_connect(uint8_t rhport)
 }
 #endif
 
-void dcd_sof_enable(uint8_t rhport, bool en)
-{
-  (void) rhport;
-  (void) en;
-
-  // TODO implement later
-}
-
 // Enable device interrupt
 void dcd_int_enable (uint8_t rhport)
 {
@@ -335,10 +327,6 @@ void dcd_int_enable (uint8_t rhport)
   NVIC_EnableIRQ(USB_HP_IRQn);
   NVIC_EnableIRQ(USB_LP_IRQn);
   NVIC_EnableIRQ(USBWakeUp_IRQn);
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32WB
-  NVIC_EnableIRQ(USB_HP_IRQn);
-  NVIC_EnableIRQ(USB_LP_IRQn);
 
 #else
   #error Unknown arch in USB driver
@@ -381,10 +369,6 @@ void dcd_int_disable(uint8_t rhport)
   NVIC_DisableIRQ(USB_HP_IRQn);
   NVIC_DisableIRQ(USB_LP_IRQn);
   NVIC_DisableIRQ(USBWakeUp_IRQn);
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32WB
-  NVIC_DisableIRQ(USB_HP_IRQn);
-  NVIC_DisableIRQ(USB_LP_IRQn);
 
 #else
   #error Unknown arch in USB driver

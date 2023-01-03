@@ -223,13 +223,19 @@ enum {
 
 #define TUSB_DESC_CONFIG_POWER_MA(x)  ((x)/2)
 
+/// Device State TODO remove
+typedef enum
+{
+  TUSB_DEVICE_STATE_UNPLUG = 0  ,
+  TUSB_DEVICE_STATE_CONFIGURED  ,
+  TUSB_DEVICE_STATE_SUSPENDED   ,
+}tusb_device_state_t;
+
 typedef enum
 {
   XFER_RESULT_SUCCESS,
   XFER_RESULT_FAILED,
   XFER_RESULT_STALLED,
-  XFER_RESULT_TIMEOUT,
-  XFER_RESULT_INVALID
 }xfer_result_t;
 
 enum // TODO remove
@@ -259,7 +265,6 @@ typedef enum
 
 enum
 {
-  CONTROL_STAGE_IDLE,
   CONTROL_STAGE_SETUP,
   CONTROL_STAGE_DATA,
   CONTROL_STAGE_ACK
@@ -492,23 +497,23 @@ TU_ATTR_BIT_FIELD_ORDER_END
 //--------------------------------------------------------------------+
 
 // Get direction from Endpoint address
-TU_ATTR_ALWAYS_INLINE static inline tusb_dir_t tu_edpt_dir(uint8_t addr)
+static inline tusb_dir_t tu_edpt_dir(uint8_t addr)
 {
   return (addr & TUSB_DIR_IN_MASK) ? TUSB_DIR_IN : TUSB_DIR_OUT;
 }
 
 // Get Endpoint number from address
-TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_edpt_number(uint8_t addr)
+static inline uint8_t tu_edpt_number(uint8_t addr)
 {
   return (uint8_t)(addr & (~TUSB_DIR_IN_MASK));
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_edpt_addr(uint8_t num, uint8_t dir)
+static inline uint8_t tu_edpt_addr(uint8_t num, uint8_t dir)
 {
   return (uint8_t)(num | (dir ? TUSB_DIR_IN_MASK : 0));
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_edpt_packet_size(tusb_desc_endpoint_t const* desc_ep)
+static inline uint16_t tu_edpt_packet_size(tusb_desc_endpoint_t const* desc_ep)
 {
   return tu_le16toh(desc_ep->wMaxPacketSize) & TU_GENMASK(10, 0);
 }
@@ -516,18 +521,18 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_edpt_packet_size(tusb_desc_endpo
 //--------------------------------------------------------------------+
 // Descriptor helper
 //--------------------------------------------------------------------+
-TU_ATTR_ALWAYS_INLINE static inline uint8_t const * tu_desc_next(void const* desc)
+static inline uint8_t const * tu_desc_next(void const* desc)
 {
   uint8_t const* desc8 = (uint8_t const*) desc;
   return desc8 + desc8[DESC_OFFSET_LEN];
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_type(void const* desc)
+static inline uint8_t tu_desc_type(void const* desc)
 {
   return ((uint8_t const*) desc)[DESC_OFFSET_TYPE];
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_len(void const* desc)
+static inline uint8_t tu_desc_len(void const* desc)
 {
   return ((uint8_t const*) desc)[DESC_OFFSET_LEN];
 }

@@ -51,10 +51,10 @@
 #endif
 
 // Compile-time Assert
-#if defined (__cplusplus) && __cplusplus >= 201103L
-  #define TU_VERIFY_STATIC   static_assert
-#elif defined (__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#if defined (__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
   #define TU_VERIFY_STATIC   _Static_assert
+#elif defined (__cplusplus) && __cplusplus >= 201103L
+  #define TU_VERIFY_STATIC   static_assert
 #elif defined(__CCRX__)
   #define TU_VERIFY_STATIC(const_expr, _mess) typedef char TU_XSTRCAT(Line, __LINE__)[(const_expr) ? 1 : 0];
 #else
@@ -75,11 +75,7 @@
  * Nth position is the same as the number of arguments
  * - ##__VA_ARGS__ is used to deal with 0 paramerter (swallows comma)
  *------------------------------------------------------------------*/
-#if !defined(__CCRX__)
-#define TU_ARGS_NUM(...)   _TU_NARG(_0, ##__VA_ARGS__,_RSEQ_N())
-#else
-#define TU_ARGS_NUM(...)   _TU_NARG(_0, __VA_ARGS__,_RSEQ_N())
-#endif
+#define TU_ARGS_NUM(...) 	 _TU_NARG(_0, ##__VA_ARGS__,_RSEQ_N())
 
 #define _TU_NARG(...)      _GET_NTH_ARG(__VA_ARGS__)
 #define _GET_NTH_ARG( \
@@ -131,12 +127,6 @@
   #define TU_ATTR_BIT_FIELD_ORDER_BEGIN
   #define TU_ATTR_BIT_FIELD_ORDER_END
 
-  #if __has_attribute(__fallthrough__)
-    #define TU_ATTR_FALLTHROUGH         __attribute__((fallthrough))
-  #else
-    #define TU_ATTR_FALLTHROUGH         do {} while (0)  /* fallthrough */
-  #endif
-
   // Endian conversion use well-known host to network (big endian) naming
   #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     #define TU_BYTE_ORDER TU_LITTLE_ENDIAN
@@ -162,7 +152,6 @@
   #define TU_ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess))) // warn if function with this attribute is used
   #define TU_ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
   #define TU_ATTR_USED                  __attribute__ ((used))
-  #define TU_ATTR_FALLTHROUGH           __attribute__((fallthrough))
 
   #define TU_ATTR_PACKED_BEGIN
   #define TU_ATTR_PACKED_END
@@ -189,7 +178,6 @@
   #define TU_ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess))) // warn if function with this attribute is used
   #define TU_ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
   #define TU_ATTR_USED                  __attribute__ ((used))             // Function/Variable is meant to be used
-  #define TU_ATTR_FALLTHROUGH           __attribute__((fallthrough))
 
   #define TU_ATTR_PACKED_BEGIN
   #define TU_ATTR_PACKED_END
@@ -215,7 +203,6 @@
   #define TU_ATTR_DEPRECATED(mess)
   #define TU_ATTR_UNUSED
   #define TU_ATTR_USED
-  #define TU_ATTR_FALLTHROUGH           do {} while (0)  /* fallthrough */
 
   #define TU_ATTR_PACKED_BEGIN          _Pragma("pack")
   #define TU_ATTR_PACKED_END            _Pragma("packoption")
@@ -235,7 +222,6 @@
 #else 
   #error "Compiler attribute porting is required"
 #endif
-
 
 #if (TU_BYTE_ORDER == TU_LITTLE_ENDIAN)
 

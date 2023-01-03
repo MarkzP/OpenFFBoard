@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if (CFG_TUH_ENABLED && CFG_TUH_VENDOR)
+#if (TUSB_OPT_HOST_ENABLED && CFG_TUH_VENDOR)
 
 //--------------------------------------------------------------------+
 // INCLUDE
