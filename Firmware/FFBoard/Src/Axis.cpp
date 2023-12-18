@@ -441,7 +441,8 @@ void Axis::calculateAxisEffects(bool ffb_on){
 
 	// Always active damper
 	if(damperIntensity != 0){
-		float speedFiltered = metric.current.speed * (float)damperIntensity * 0.15f; // 1.5
+		float speed = metric.current.speed * metric.current.speed * metric.current.speed; //(metric.current.speed < 0.0f ? -1.0f : 1.0f);
+		float speedFiltered = speed * (float)damperIntensity * 0.000001f;
 		axisEffectTorque -= clip<float, float>(speedFiltered, -damperClip, damperClip);
 	}
 }
@@ -510,6 +511,34 @@ bool Axis::isInverted() {
  * Calculate soft endstop effect
  */
 float Axis::updateEndstop(){
+#if 1
+	float torque = 0.0f;
+
+	float dor = (float)this->degreesOfRotation / 2;
+	float pos = metric.current.posDegrees;
+
+	float overshoot = fabsf(pos) - dor;
+	const float transition = 10.0f;
+	if (overshoot > 0.0f)
+	{
+		float slope = 1.0f;
+		if (overshoot < transition)
+		{
+			float phaseRad = (float)M_PI * overshoot / (2.0f * transition); // we start to compute the normalized angle (speed / normalizedSpeed@5%) and translate it of -1/2PI to translate sin on 1/2 periode
+			slope = (1.0f + sinf(phaseRad)) * 0.5f;				// sin value is -1..1 range, we translate it to 0..2 and we scale it by 2
+		}
+
+		float springGain = (pos > 0.0f ? 1.0f : -1.0f) * (float)endstopStrength * endstopGain * slope * torqueScaler;
+		torque -= overshoot * springGain;
+
+		float damperGain = (float)((fx_ratio_i - 102) / 4) * slope * torqueScaler;
+		torque -= metric.current.speed * damperGain;
+	}
+
+
+
+	return torque;
+#else
 	int8_t clipdir = cliptest<int32_t,int32_t>(metric.current.pos, -0x7fff, 0x7fff);
 	if(clipdir == 0){
 		return 0.0f;
@@ -522,6 +551,7 @@ float Axis::updateEndstop(){
 	addtorque -= metric.current.speed * (float)((fx_ratio_i - 102) / 4);
 
 	return addtorque;
+#endif
 }
 
 void Axis::setEffectTorque(float torque) {

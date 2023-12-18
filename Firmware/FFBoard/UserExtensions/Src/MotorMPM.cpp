@@ -130,7 +130,7 @@ int32_t MotorMPM::getPos()
 		}
 		else
 		{
-			rotation = 0;
+			rotation = rawPosition < offset ? -1 : 0;
 			aligned = true;
 		}
 

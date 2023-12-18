@@ -357,7 +357,47 @@ float EffectsCalculator::calcComponentForce(FFB_Effect *effect, float forceVecto
 	{
 
 		float speed = metrics->speed * scaleSpeed;
+
+#if 1
+
+		float deadBand = (float)effect->conditions[con_idx].deadBand;
+		float force = 0.0f;
+
+		float sign = speed < 0.0f ? -1.0f : 1.0f;
+		float coeff = speed < 0.0f ? (float)effect->conditions[con_idx].negativeCoefficient : (float)effect->conditions[con_idx].positiveCoefficient;
+
+		float speedRampupCeil = 1000.0f + (coeff * 0.25f);
+
+		// Effect is only active outside deadband + offset
+		if (fabsf(speed) > deadBand){
+
+			// remove offset/deadband from metric to compute force
+			speed -= deadBand * (speed < 0.0f ? -1.0f : 1.0f);
+
+			float rampupFactor = 1.0f;
+			if (fabsf(speed) < speedRampupCeil) {								// if speed in the range to rampup we apply a sinus curbe to ramup
+
+				float phaseRad = (float)M_PI * ((fabsf(speed) / speedRampupCeil) - 0.5f);// we start to compute the normalized angle (speed / normalizedSpeed@5%) and translate it of -1/2PI to translate sin on 1/2 periode
+				rampupFactor = (1.0f + sinf(phaseRad)) * 0.5f;						// sin value is -1..1 range, we translate it to 0..2 and we scale it by 2
+			}
+
+			force = coeff * rampupFactor * sign;
+			force *= 0.25f;
+
+			force = clip<float, float>(force, (float)-effect->conditions[con_idx].negativeSaturation, (float)effect->conditions[con_idx].positiveSaturation);
+
+			force *= (float)(gain.friction + 1);
+			force /= 256.0f;
+			force *= angle_ratio;
+			//force *= friction_scaler;
+		}
+
+		result_torque -= effect->filter[con_idx]->process(force);
+#else
+
 		result_torque -= effect->filter[con_idx]->process(calcConditionEffectForce(effect, speed, gain.friction, con_idx, friction_scaler, angle_ratio));
+#endif
+
 
 		break;
 	}
