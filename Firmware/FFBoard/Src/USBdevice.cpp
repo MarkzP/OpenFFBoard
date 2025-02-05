@@ -34,7 +34,7 @@ void USBdevice::Run(){
 	tusb_init();
 	while(1){
 		tud_task();
-		Delay(1);
+		//Delay(1);
 	}
 }
 

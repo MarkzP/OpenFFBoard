@@ -104,7 +104,6 @@ void EffectsCalculator::calculateEffects(std::vector<std::unique_ptr<Axis>> &axe
 
 	float forceX = 0;
 	float forceY = 0;
-	float forceVector = 0;
 	uint8_t axisCount = (uint8_t)axes.size();
 	bool validY = axisCount > 1;
 #if MAX_AXIS == 3
@@ -137,7 +136,7 @@ void EffectsCalculator::calculateEffects(std::vector<std::unique_ptr<Axis>> &axe
 
 
 		//if (effect->conditionsCount == 0) {
-		forceVector = calcNonConditionEffectForce(effect);
+		float forceVector = calcNonConditionEffectForce(effect);
 		//}
 
 
@@ -146,15 +145,15 @@ void EffectsCalculator::calculateEffects(std::vector<std::unique_ptr<Axis>> &axe
 		if (effect->enableAxis & directionEnableMask || (effect->enableAxis & X_AXIS_ENABLE))
 		{
 			forceX += calcComponentForce(effect, forceVector, axes, 0);
-			forceX = clip<float, float>(forceX, (float)-0x7fff, (float)0x7fff); // Clip
 		}
 		if (validY && (effect->enableAxis & directionEnableMask || (effect->enableAxis & Y_AXIS_ENABLE)))
 		{
 			forceY += calcComponentForce(effect, forceVector, axes, 1);
-			forceY = clip<float, float>(forceY, (float)-0x7fff, (float)0x7fff); // Clip
 		}
-
 	}
+
+	forceX = clip<float, float>(forceX, (float)-0x7fff, (float)0x7fff); // Clip
+	forceY = clip<float, float>(forceY, (float)-0x7fff, (float)0x7fff); // Clip
 
 	axes[0]->setEffectTorque((int32_t)forceX);
 	if (validY)
@@ -403,7 +402,7 @@ float EffectsCalculator::calcComponentForce(FFB_Effect *effect, float forceVecto
 	}
 	case FFB_EFFECT_DAMPER:
 	{
-
+		effect->conditions[con_idx].cpOffset = 0;
 		float speed = metrics->speed * scaleSpeed;
 		result_torque -= effect->filter[con_idx]->process(calcConditionEffectForce(effect, speed, gain.damper, con_idx, damper_scaler, angle_ratio));
 
@@ -412,6 +411,7 @@ float EffectsCalculator::calcComponentForce(FFB_Effect *effect, float forceVecto
 
 	case FFB_EFFECT_INERTIA:
 	{
+		effect->conditions[con_idx].cpOffset = 0;
 		float accel = metrics->accel* scaleAccel;
 		result_torque -= effect->filter[con_idx]->process(calcConditionEffectForce(effect, accel, gain.inertia, con_idx, inertia_scaler, angle_ratio)); // Bump *60 the inertia feedback
 

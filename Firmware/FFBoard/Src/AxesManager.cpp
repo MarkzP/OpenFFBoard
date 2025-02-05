@@ -99,7 +99,7 @@ bool AxesManager::setAxisCount(int8_t count) {
 		return false; // invalid number of axis
 	}
 	// Really need to use some form of mutex
-	Flash_Write(ADR_AXIS_COUNT, count);
+	//Flash_Write(ADR_AXIS_COUNT, count);
 
 	while (count < axis_count) {
 		uint8_t pos = axis_count-1;
