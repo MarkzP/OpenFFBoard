@@ -71,8 +71,8 @@ void Axis::registerCommands(){
 	registerCommand("enctype", Axis_commands::enctype, "Encoder type get/set/list",CMDFLAG_GET | CMDFLAG_SET | CMDFLAG_INFOSTRING);
 	registerCommand("drvtype", Axis_commands::drvtype, "Motor driver type get/set/list",CMDFLAG_GET | CMDFLAG_SET | CMDFLAG_INFOSTRING);
 	registerCommand("pos", Axis_commands::pos, "Encoder position",CMDFLAG_GET);
-	registerCommand("maxspeed", Axis_commands::maxspeed, "Speed limit in deg/s",CMDFLAG_GET | CMDFLAG_SET);
-	registerCommand("maxtorquerate", Axis_commands::maxtorquerate, "Torque rate limit in counts/ms",CMDFLAG_GET | CMDFLAG_SET);
+	registerCommand("notchf", Axis_commands::notchf, "Notch filter frequency *100",CMDFLAG_GET | CMDFLAG_SET);
+	registerCommand("notchq", Axis_commands::notchq, "Notch filter Q *100",CMDFLAG_GET | CMDFLAG_SET);
 	registerCommand("fxratio", Axis_commands::fxratio, "Effect ratio. Reduces effects excluding endstop. 255=100%",CMDFLAG_GET | CMDFLAG_SET);
 	registerCommand("curtorque", Axis_commands::curtorque, "Axis torque",CMDFLAG_GET);
 	registerCommand("curpos", Axis_commands::curpos, "Axis position",CMDFLAG_GET);
@@ -94,18 +94,9 @@ void Axis::restoreFlash(){
 	setDrvType(this->conf.drvtype);
 	setEncType(this->conf.enctype);
 
-//	if (Flash_Read(flashAddrs.maxSpeed, &value)){
-//		this->maxSpeedDegS = value;
-//	}else{
-//		pulseErrLed();
-//	}
-//
-//	if (Flash_Read(flashAddrs.maxAccel, &value)){
-//		this->maxTorqueRateMS = value;
-//	}else{
-//		pulseErrLed();
-//	}
-
+	if (!Flash_Read(flashAddrs.notchf, &notchf)) notchf = 0;
+	if (!Flash_Read(flashAddrs.notchq, &notchq)) notchq = 0;
+	setNotchFilter();
 
 	uint16_t esval, power;
 	if(Flash_Read(flashAddrs.endstop, &esval)) {
@@ -136,9 +127,8 @@ void Axis::restoreFlash(){
 void Axis::saveFlash(){
 	//NormalizedAxis::saveFlash();
 	Flash_Write(flashAddrs.config, Axis::encodeConfToInt(this->conf));
-//	Flash_Write(flashAddrs.maxSpeed, this->maxSpeedDegS);
-//	Flash_Write(flashAddrs.maxAccel, (uint16_t)(this->maxTorqueRateMS));
-
+	Flash_Write(flashAddrs.notchf, notchf);
+	Flash_Write(flashAddrs.notchq, notchq);
 	Flash_Write(flashAddrs.endstop, fx_ratio_i | (endstopStrength << 8));
 	Flash_Write(flashAddrs.power, power);
 	Flash_Write(flashAddrs.degrees, (degreesOfRotation & 0x7fff) | (invertAxis << 15));
@@ -390,10 +380,10 @@ metric_t* Axis::getMetrics() {
 	return &metric.current;
 }
 
-float Axis::getSpeedScalerNormalized() {
-	//return speedScalerNormalized;
-	return (float)0x7FFF / maxSpeedDegS;
-}
+//float Axis::getSpeedScalerNormalized() {
+//	//return speedScalerNormalized;
+//	return (float)0x7FFF / maxSpeedDegS;
+//}
 
 //float	 Axis::getAccelScalerNormalized() {
 //	//return accelScalerNormalized;
@@ -435,15 +425,24 @@ void Axis::setDamperStrength(uint8_t damper){
 void Axis::calculateAxisEffects(bool ffb_on){
 	axisEffectTorque = 0.0f;
 
-	if(!ffb_on){
+	if(idle_center){
 		axisEffectTorque += updateIdleSpringForce();
 	}
 
 	// Always active damper
 	if(damperIntensity != 0){
-		float speed = metric.current.speed * metric.current.speed * metric.current.speed; //(metric.current.speed < 0.0f ? -1.0f : 1.0f);
-		float speedFiltered = speed * (float)damperIntensity * 0.000001f;
-		axisEffectTorque -= clip<float, float>(speedFiltered, -damperClip, damperClip);
+		float dclip = (float)damperIntensity * 10.0f;
+		float damp = metric.current.speed * (float)damperIntensity * 0.25f;
+
+		axisEffectTorque -= clip<float, float>(damp, -dclip, dclip);
+	}
+}
+
+void Axis::setNotchFilter() {
+	if (notchf < 100 || notchf >= 50000 || notchq < 1 || notchq >= 1000) {
+		notchFilter.setBiquad(BiquadType::bypass, 0.5f, 1.0f, 0.0f);
+	} else {
+		notchFilter.setBiquad(BiquadType::notch, (float)notchf * 0.01f, (float)notchq * 0.01f, 0.0f);
 	}
 }
 
@@ -555,6 +554,8 @@ float Axis::updateEndstop(){
 }
 
 void Axis::setEffectTorque(float torque) {
+
+	if (fabsf(torque) > 0.0f) lastSetEffectTorque = HAL_GetTick();
 	effectTorque = torque;
 }
 
@@ -562,15 +563,11 @@ void Axis::setEffectTorque(float torque) {
 // return true if torque is clipping
 bool Axis::updateTorque(int32_t* totalTorque) {
 
-	if(abs(effectTorque) >= (float)0x7fff){
-		pulseClipLed();
-	}
+	float torque = axisEffectTorque * torqueScaler;
+	torque += effectTorque * torqueScaler;
+	torque += updateEndstop();
 
-	// Scale effect torque
-	effectTorque  *= torqueScaler;
-
-	float torque = effectTorque + updateEndstop();
-	torque += axisEffectTorque * torqueScaler; // Updated from effect calculator
+	torque = notchFilter.process(torque);
 /*
 	// TODO speed and accel limiters
 	if(maxSpeedDegS > 0){
@@ -608,8 +605,8 @@ bool Axis::updateTorque(int32_t* totalTorque) {
 
 	// Torque calculated. Now sending to driver
 	int32_t finalTorque = (int32_t)(invertAxis ? -torque : torque);
-	metric.current.torque = finalTorque;
 	finalTorque = clip<int32_t, int32_t>(finalTorque, -power, power);
+	metric.current.torque = finalTorque;
 
 	bool torqueChanged = finalTorque != metric.previous.torque;
 
@@ -737,12 +734,14 @@ CommandStatus Axis::command(const ParsedCommand& cmd,std::vector<CommandReply>& 
 		}
 		break;
 
-	case Axis_commands::maxspeed:
-		handleGetSet(cmd, replies, this->maxSpeedDegS);
+	case Axis_commands::notchf:
+		handleGetSet(cmd, replies, this->notchf);
+		if (cmd.type == CMDtype::set) setNotchFilter();
 		break;
 
-	case Axis_commands::maxtorquerate:
-		handleGetSet(cmd, replies, this->maxTorqueRateMS);
+	case Axis_commands::notchq:
+		handleGetSet(cmd, replies, this->notchq);
+		if (cmd.type == CMDtype::set) setNotchFilter();
 		break;
 
 	case Axis_commands::fxratio:

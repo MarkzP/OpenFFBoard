@@ -158,6 +158,10 @@ void Biquad::calcBiquad(void) {
                 b2 = (V - sqrtf(2.0f*V) * K + K * K) * norm;
             }
             break;
+        case BiquadType::bypass:
+        		a0 = 1.0f;
+        		a1 = a2 = b1 = b2 = 0.0f;
+        	break;
     }
 
     return;

@@ -18,7 +18,8 @@ enum class BiquadType : uint8_t {
     notch,
     peak,
     lowshelf,
-    highshelf
+    highshelf,
+	bypass
 };
 
 class Biquad{

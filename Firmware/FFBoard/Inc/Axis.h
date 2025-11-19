@@ -39,8 +39,8 @@ struct Control_t {
 struct AxisFlashAddrs
 {
 	uint16_t config = ADR_AXIS1_CONFIG;
-	uint16_t maxSpeed = ADR_AXIS1_MAX_SPEED;
-	uint16_t maxAccel = ADR_AXIS1_MAX_ACCEL;
+	uint16_t notchf = ADR_AXIS1_MAX_SPEED;
+	uint16_t notchq = ADR_AXIS1_MAX_ACCEL;
 	uint16_t endstop = ADR_AXIS1_ENDSTOP;
 
 	uint16_t power = ADR_AXIS1_POWER;
@@ -72,7 +72,7 @@ struct axis_metric_t {
 
 
 enum class Axis_commands : uint32_t{
-	power=0x00,degrees=0x01,esgain,zeroenc,invert,idlespring,axisdamper,enctype,drvtype,pos,maxspeed,maxtorquerate,fxratio,curtorque,curpos
+	power=0x00,degrees=0x01,esgain,zeroenc,invert,idlespring,axisdamper,enctype,drvtype,pos,notchf,notchq,fxratio,curtorque,curpos
 };
 
 class Axis : public PersistentStorage, public CommandHandler, public ErrorHandler
@@ -142,11 +142,13 @@ public:
 	float updateEndstop();
 
 	metric_t* getMetrics();
-	float 	 getSpeedScalerNormalized();
+	//float 	 getSpeedScalerNormalized();
 	//float	 getAccelScalerNormalized();
 
+	uint32_t lastSetEffectTorque;
 	void setEffectTorque(float torque);
 	bool updateTorque(int32_t* totalTorque);
+
 
 
 private:
@@ -200,11 +202,11 @@ private:
 	uint16_t nextDegreesOfRotation = degreesOfRotation; // Buffer when changing range
 
 	// Limiters
-	uint16_t maxSpeedDegS  = 0; // Set to non zero to enable. example 1000. 8b * 10?
+	//uint16_t maxSpeedDegS  = 0; // Set to non zero to enable. example 1000. 8b * 10?
 	//float	 maxAccelDegSS = 0;
-	uint32_t maxTorqueRateMS = 0; // 8b * 128?
+	//uint32_t maxTorqueRateMS = 0; // 8b * 128?
 
-	float spdlimitreducerI = 0;
+	//float spdlimitreducerI = 0;
 	//float acclimitreducerI = 0;
 	//const uint8_t accelFactor = 10.0; // Conversion factor between internal and external acc limit
 
@@ -245,6 +247,11 @@ private:
 	Biquad accelFilter = Biquad(BiquadType::lowpass, accel_f/filter_f, accel_q, 0.0);
 	//Biquad limitsFilter = Biquad(BiquadType::lowpass, 20/filter_f, 0.4, 0.0);
 	FastAvg<float,8> spdlimiterAvg;
+
+	uint16_t notchf = 0;
+	uint16_t notchq = 0;
+	Biquad notchFilter = Biquad(BiquadType::bypass, 0.5f, 1.0f, 0.0f);
+	void setNotchFilter();
 
 	void setFxRatio(uint8_t val);
 	void updateTorqueScaler();
