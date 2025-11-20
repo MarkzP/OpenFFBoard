@@ -555,7 +555,10 @@ float Axis::updateEndstop(){
 
 void Axis::setEffectTorque(float torque) {
 
-	if (fabsf(torque) > 0.0f) lastSetEffectTorque = HAL_GetTick();
+	if (fabsf(torque) > 0.0f) {
+		lastSetEffectTorque = HAL_GetTick();
+		effectTorqueScaler = effectTorqueScaler >= 1.0f ? 1.0f : effectTorqueScaler + effectTorqueRamp;
+	}
 	effectTorque = torque;
 }
 
@@ -563,8 +566,10 @@ void Axis::setEffectTorque(float torque) {
 // return true if torque is clipping
 bool Axis::updateTorque(int32_t* totalTorque) {
 
+	if ((HAL_GetTick() - lastSetEffectTorque) > effectTorqueTimeout) effectTorqueScaler = 0.0f;
+
 	float torque = axisEffectTorque * torqueScaler;
-	torque += effectTorque * torqueScaler;
+	torque += effectTorque * effectTorqueScaler * torqueScaler;
 	torque += updateEndstop();
 
 	torque = notchFilter.process(torque);

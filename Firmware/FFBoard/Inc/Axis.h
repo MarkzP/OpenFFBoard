@@ -145,6 +145,9 @@ public:
 	//float 	 getSpeedScalerNormalized();
 	//float	 getAccelScalerNormalized();
 
+	const uint32_t effectTorqueTimeout = 5000;
+	const float effectTorqueRamp = 1.0f / 500.0f;
+	float effectTorqueScaler = 0.0f;
 	uint32_t lastSetEffectTorque;
 	void setEffectTorque(float torque);
 	bool updateTorque(int32_t* totalTorque);
