@@ -269,11 +269,11 @@ typedef struct
 {
 	volatile uint8_t state = 0;
 	uint8_t type = FFB_EFFECT_NONE; // Type
-	float offset = 0.0f;				// Center point
-	float gain = 1.0f;				// Scaler. often unused
-	int16_t magnitude = 0;			// High res intensity of effect
-	int16_t startLevel = 0;			// Ramp effect
-	int16_t endLevel = 0;			// Ramp effect
+	double offset = 0.0;				// Center point
+	double gain = 1.0;				// Scaler. often unused
+	double magnitude = 0.0;			// High res intensity of effect
+	double startLevel = 0.0;			// Ramp effect
+	double endLevel = 0.0;			// Ramp effect
 	uint8_t enableAxis = 0;			// Active axis
 	uint16_t directionX = 0;		// angle (0=0 .. 36000=360deg)
 	uint16_t directionY = 0;		// angle (0=0 .. 36000=360deg)
@@ -285,8 +285,8 @@ typedef struct
 	int16_t phase = 0;
 	uint16_t period = 0;
 	uint32_t duration = 0;					 // Duration in ms
-	uint16_t attackLevel = 0, fadeLevel = 0; // Envelope effect
-	uint32_t attackTime = 0, fadeTime = 0;	 // Envelope effect
+	double attackLevel = 0, fadeLevel = 0; // Envelope effect
+	double attackTime = 0, fadeTime = 0;	 // Envelope effect
 
 	std::unique_ptr<Biquad> filter[MAX_AXIS] = { nullptr };  // Optional filter
 	uint16_t startDelay = 0;

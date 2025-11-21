@@ -253,7 +253,7 @@ void HidFFB::set_constant_effect(FFB_SetConstantForce_Data_t* data){
 	}
 	FFB_Effect& effect_p = effects[data->effectBlockIndex-1];
 
-	effect_p.magnitude = data->magnitude;
+	effect_p.magnitude = (double)data->magnitude;
 	//	if(effect_p.state == 0){
 //		effect_p.state = 1; // Force start effect
 //	}
@@ -302,7 +302,7 @@ void HidFFB::set_effect(FFB_SetEffect_t* effect){
 		set_filters(effect_p);
 	}
 
-	effect_p->gain = (float)effect->gain / 255.0f;
+	effect_p->gain = (double)effect->gain / 255.0;
 	effect_p->type = effect->effectType;
 	effect_p->samplePeriod = effect->samplePeriod;
 
@@ -397,10 +397,10 @@ void HidFFB::set_envelope(FFB_SetEnvelope_Data_t *report){
 	CommandHandler::logSerialDebug("Set envelope " + std::to_string(report->effectBlockIndex - 1));
 #endif
 
-	effect->attackLevel = report->attackLevel;
-	effect->attackTime = report->attackTime;
-	effect->fadeLevel = report->fadeLevel;
-	effect->fadeTime = report->fadeTime;
+	effect->attackLevel = (double)report->attackLevel;
+	effect->attackTime = (double)report->attackTime;
+	effect->fadeLevel = (double)report->fadeLevel;
+	effect->fadeTime = (double)report->fadeTime;
 	effect->useEnvelope = true;
 }
 void HidFFB::set_ramp(FFB_SetRamp_Data_t *report){
@@ -414,8 +414,8 @@ void HidFFB::set_ramp(FFB_SetRamp_Data_t *report){
 #endif
 
 	effect->magnitude = 0x7fff; // Full magnitude for envelope calculation. This effect does not have a periodic report
-	effect->startLevel = report->startLevel;
-	effect->endLevel = report->endLevel;
+	effect->startLevel = (double)report->startLevel;
+	effect->endLevel = (double)report->endLevel;
 }
 
 void HidFFB::set_periodic(FFB_SetPeriodic_Data_t* report){
@@ -426,7 +426,7 @@ void HidFFB::set_periodic(FFB_SetPeriodic_Data_t* report){
 
 	effect->period = clip<uint32_t,uint32_t>(report->period,1,0x7fff); // Period is never 0
 	effect->magnitude = report->magnitude;
-	effect->offset = report->offset;
+	effect->offset = (double)report->offset;
 	effect->phase = report->phase;
 	//effect->counter = 0;
 }

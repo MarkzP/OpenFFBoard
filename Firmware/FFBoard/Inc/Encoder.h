@@ -38,10 +38,10 @@ public:
 	virtual EncoderType getType();
 
 	virtual int32_t getPos();
-	virtual float getPos_f();
+	virtual double getPos_f();
 
 	virtual int32_t getPosAbs();
-	virtual float getPosAbs_f();
+	virtual double getPosAbs_f();
 
 	virtual void setPos(int32_t pos);
 

@@ -66,29 +66,29 @@ private:
 	uint8_t directionEnableMask = 0;
 // Filters
 	bool effects_active = false; // was ffb_active
-	float global_gain = 1.0f;
-	float damper_f = 30.0f , damper_q = 0.4f;
-	float friction_f = 50.0f , friction_q = 0.2f; //50 0.2
-	float inertia_f = 15.0f , inertia_q = 0.2f;
+	double global_gain = 1.0;
+	double damper_f = 30.0 , damper_q = 0.4;
+	double friction_f = 50.0 , friction_q = 0.2; //50 0.2
+	double inertia_f = 15.0 , inertia_q = 0.2;
 	const uint32_t calcfrequency = 1000; // HID frequency 1khz
 	uint32_t cfFilter_f = calcfrequency/2; // 500 = off
 	uint8_t cfFilter_q = 70; // User settable. q * 10
-	const float cfFilter_qfloatScaler = 0.01f;
+	const double cfFilter_qdoubleScaler = 0.01;
 
 	// Rescale factor for conditional effect to boost or decrease the intensity
-	const float spring_scaler = 16.0f;
-	const float friction_scaler = 2.0f;
-	const float damper_scaler = 2.0f;
-	const float inertia_scaler = 200.0f;
+	const double spring_scaler = 16.0;
+	const double friction_scaler = 2.0;
+	const double damper_scaler = 2.0;
+	const double inertia_scaler = 200.0;
 
 	effect_gain_t gain;
 
 	uint32_t effects_used = 0;
 
-	float calcComponentForce(FFB_Effect *effect, float forceVector, std::vector<std::unique_ptr<Axis>> &axes, uint8_t axis);
-	float calcNonConditionEffectForce(FFB_Effect* effect);
-	float calcConditionEffectForce(FFB_Effect *effect, float metric, uint8_t gain, uint8_t idx, float scale, float angle_ratio);
-	float getEnvelopeMagnitude(FFB_Effect *effect);
+	double calcComponentForce(FFB_Effect *effect, double forceVector, std::vector<std::unique_ptr<Axis>> &axes, uint8_t axis);
+	double calcNonConditionEffectForce(FFB_Effect* effect);
+	double calcConditionEffectForce(FFB_Effect *effect, double metric, uint8_t gain, uint8_t idx, double scale, double angle_ratio);
+	double getEnvelopeMagnitude(FFB_Effect *effect);
 	std::string listEffectsUsed();
 };
 #endif /* EFFECTSCALCULATOR_H_ */

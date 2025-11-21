@@ -62,11 +62,11 @@ int32_t Encoder::getPos(){
 	return 0;
 }
 
-float Encoder::getPosAbs_f(){
+double Encoder::getPosAbs_f(){
 	if(getCpr() == 0){
 		return 0.0; // cpr not set.
 	}
-	return (float)this->getPosAbs() / (float)this->getCpr();
+	return (double)this->getPosAbs() / (double)this->getCpr();
 }
 
 /**
@@ -81,11 +81,11 @@ int32_t Encoder::getPosAbs(){
 /**
  * Returns a float position in rotations
  */
-float Encoder::getPos_f(){
+double Encoder::getPos_f(){
 	if(getCpr() == 0){
 		return 0.0; // cpr not set.
 	}
-	return (float)this->getPos() / (float)this->getCpr();
+	return (double)this->getPos() / (double)this->getCpr();
 }
 
 /**

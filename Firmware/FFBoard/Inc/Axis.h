@@ -55,12 +55,12 @@ struct AxisConfig
 	//bool invert = false;
 };
 struct metric_t {
-	float accel = 0;	// in deg/s²
-	float accelInstant = 0;
-	float speed = 0;
-	float speedInstant = 0; // in deg/s
+	double accel = 0;	// in deg/s²
+	double accelInstant = 0;
+	double speed = 0;
+	double speedInstant = 0; // in deg/s
 	int32_t pos = 0;
-	float posDegrees = 0;
+	double posDegrees = 0;
 	int32_t torque = 0; // total of effect + endstop torque
 };
 
@@ -111,12 +111,12 @@ public:
 
 	bool getFfbActive();
 
-	int32_t scaleEncValue(float angle, uint16_t degrees);
-	float 	getEncAngle(Encoder *enc);
-//	float	getNormalizedSpeedScaler(uint16_t maxSpeedRpm, uint16_t degrees);
-//	float	getNormalizedAccelScaler(uint16_t maxAccelRpm, uint16_t degrees);
-//	float	getSpeedFromNormalized(uint16_t speedNormalized, uint16_t degrees);
-//	float	getAccelFromNormalized(uint16_t accelNormalized, uint16_t degrees);
+	int32_t scaleEncValue(double angle, uint16_t degrees);
+	double 	getEncAngle(Encoder *enc);
+//	double	getNormalizedSpeedScaler(uint16_t maxSpeedRpm, uint16_t degrees);
+//	double	getNormalizedAccelScaler(uint16_t maxAccelRpm, uint16_t degrees);
+//	double	getSpeedFromNormalized(uint16_t speedNormalized, uint16_t degrees);
+//	double	getAccelFromNormalized(uint16_t accelNormalized, uint16_t degrees);
 
 
 	void setPower(uint16_t power);
@@ -132,24 +132,24 @@ public:
 	ClassChooser<Encoder> enc_chooser;
 
 	int32_t getLastScaledEnc();
-	void resetMetrics(float new_pos);
-	void updateMetrics(float new_pos);
-	float updateIdleSpringForce();
+	void resetMetrics(double new_pos);
+	void updateMetrics(double new_pos);
+	double updateIdleSpringForce();
 	void setIdleSpringStrength(uint8_t spring);
 	void setDamperStrength(uint8_t damper);
 	void calculateAxisEffects(bool ffb_on);
 	int32_t getTorque(); // current torque scaled as a 32 bit signed value
-	float updateEndstop();
+	double updateEndstop();
 
 	metric_t* getMetrics();
-	//float 	 getSpeedScalerNormalized();
-	//float	 getAccelScalerNormalized();
+	//double 	 getSpeedScalerNormalized();
+	//double	 getAccelScalerNormalized();
 
 	const uint32_t effectTorqueTimeout = 5000;
-	const float effectTorqueRamp = 1.0f / 500.0f;
-	float effectTorqueScaler = 0.0f;
+	const double effectTorqueRamp = 1.0 / 500.0;
+	double effectTorqueScaler = 0.0;
 	uint32_t lastSetEffectTorque;
-	void setEffectTorque(float torque);
+	void setEffectTorque(double torque);
 	bool updateTorque(int32_t* totalTorque);
 
 
@@ -199,57 +199,57 @@ private:
 #endif
 
 
-	float encoderOffset = 0; // Offset for absolute encoders
+	double encoderOffset = 0; // Offset for absolute encoders
 	uint16_t degreesOfRotation = 900;					// How many degrees of range for the full gamepad range
 	uint16_t lastdegreesOfRotation = degreesOfRotation; // Used to store the previous value
 	uint16_t nextDegreesOfRotation = degreesOfRotation; // Buffer when changing range
 
 	// Limiters
 	//uint16_t maxSpeedDegS  = 0; // Set to non zero to enable. example 1000. 8b * 10?
-	//float	 maxAccelDegSS = 0;
+	//double	 maxAccelDegSS = 0;
 	//uint32_t maxTorqueRateMS = 0; // 8b * 128?
 
-	//float spdlimitreducerI = 0;
-	//float acclimitreducerI = 0;
+	//double spdlimitreducerI = 0;
+	//double acclimitreducerI = 0;
 	//const uint8_t accelFactor = 10.0; // Conversion factor between internal and external acc limit
 
 //	bool	 calibrationInProgress;
 //	uint16_t calibMaxSpeedNormalized;
-//	float	 calibMaxAccelNormalized;
+//	double	 calibMaxAccelNormalized;
 
 	void setDegrees(uint16_t degrees);
 
 	uint16_t getPower();
-	float getTorqueScaler();
+	double getTorqueScaler();
 	bool isInverted();
 	char axis;
 
 
 	// Merge normalized
 	axis_metric_t metric;
-	float effectTorque = 0;
-	float axisEffectTorque = 0;
+	double effectTorque = 0;
+	double axisEffectTorque = 0;
 	uint8_t fx_ratio_i = 204; // Reduce effects to a certain ratio of the total power to have a margin for the endstop. 80% = 204
 	uint16_t power = 2000;
-	float torqueScaler = 0; // power * fx_ratio as a ratio between 0 & 1
+	double torqueScaler = 0; // power * fx_ratio as a ratio between 0 & 1
 	bool invertAxis = false;
 	uint8_t endstopStrength = 127; // Sets how much extra torque per count above endstop is added. High = stiff endstop. Low = softer
-	const float endstopGain = 50; // Overall max endstop intensity
+	const double endstopGain = 50.0; // Overall max endstop intensity
 
 	uint8_t idlespringstrength = 127;
-	float idlespringclip = 0.0f;
-	float idlespringscale = 0.0f;
+	double idlespringclip = 0.0f;
+	double idlespringscale = 0.0f;
 	bool idle_center = false;
 
-	float speed_f = 25.0f , speed_q = 0.6f;
-	float accel_f = 120.0f , accel_q = 0.3f;
-	const float filter_f = 1000.0f; // 1khz
-	const float damperClip = 15000.0f;
+	double speed_f = 25.0 , speed_q = 0.6;
+	double accel_f = 120.0 , accel_q = 0.3;
+	const double filter_f = 1000.0f; // 1khz
+	const double damperClip = 15000.0f;
 	uint8_t damperIntensity = 30;
 	Biquad speedFilter = Biquad(BiquadType::lowpass, speed_f/filter_f, speed_q, 0.0);
 	Biquad accelFilter = Biquad(BiquadType::lowpass, accel_f/filter_f, accel_q, 0.0);
 	//Biquad limitsFilter = Biquad(BiquadType::lowpass, 20/filter_f, 0.4, 0.0);
-	FastAvg<float,8> spdlimiterAvg;
+	FastAvg<double,8> spdlimiterAvg;
 
 	uint16_t notchf = 0;
 	uint16_t notchq = 0;

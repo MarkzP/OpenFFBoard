@@ -69,8 +69,11 @@ private:
 	int32_t rotation;
 	int32_t offset;
 	bool ready = false;
+	bool sync = false;
 	bool aligned = false;
 	bool positionChanged = false;
+
+	int spiErrors = 0;
 
 	SPI_HandleTypeDef *spi;
 

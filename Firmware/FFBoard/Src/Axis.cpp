@@ -166,7 +166,7 @@ void Axis::prepareForUpdate(){
 
 	//if (!drv->motorReady()) return;
 
-	float angle = getEncAngle(this->drv->getEncoder());
+	double angle = getEncAngle(this->drv->getEncoder());
 
 	// Scale encoder value to set rotation range
 	// Update a change of range only when new range is within valid range
@@ -312,7 +312,7 @@ void Axis::setEncType(uint8_t enctype)
 		this->conf.enctype = 0; // None encoder
 	}
 
-	float angle = getEncAngle(this->drv->getEncoder());
+	double angle = getEncAngle(this->drv->getEncoder());
 	//int32_t scaledEnc = scaleEncValue(angle, degreesOfRotation);
 	// reset metrics
 	this->resetMetrics(angle);
@@ -327,12 +327,12 @@ void Axis::setEncType(uint8_t enctype)
  * Takes an encoder angle in degrees
  */
 
-int32_t Axis::scaleEncValue(float angle, uint16_t degrees){
+int32_t Axis::scaleEncValue(double angle, uint16_t degrees){
 	if (degrees == 0){
 		return 0x7fff;
 	}
 
-	int32_t val = (int32_t)(((float)0xffff / (float)degrees) * angle);
+	int32_t val = (int32_t)(((double)0xffff / (double)degrees) * angle);
 
 	return val;
 }
@@ -340,9 +340,9 @@ int32_t Axis::scaleEncValue(float angle, uint16_t degrees){
 /**
  * Returns the encoder position in degrees
  */
-float Axis::getEncAngle(Encoder *enc){
+double Axis::getEncAngle(Encoder *enc){
 	if(enc != nullptr){
-		float pos = 360.0f * enc->getPos_f();
+		double pos = 360.0 * enc->getPos_f();
 		if (isInverted()){
 			pos= -pos;
 		}
@@ -380,14 +380,14 @@ metric_t* Axis::getMetrics() {
 	return &metric.current;
 }
 
-//float Axis::getSpeedScalerNormalized() {
+//double Axis::getSpeedScalerNormalized() {
 //	//return speedScalerNormalized;
-//	return (float)0x7FFF / maxSpeedDegS;
+//	return (double)0x7FFF / maxSpeedDegS;
 //}
 
-//float	 Axis::getAccelScalerNormalized() {
+//double	 Axis::getAccelScalerNormalized() {
 //	//return accelScalerNormalized;
-//	return (float)0x7FFF / maxAccelDegSS;
+//	return (double)0x7FFF / maxAccelDegSS;
 //}
 
 
@@ -396,8 +396,8 @@ int32_t Axis::getLastScaledEnc() {
 }
 
 
-float Axis::updateIdleSpringForce() {
-	return clip<float,float>((float)-metric.current.pos * idlespringscale, -idlespringclip, idlespringclip);
+double Axis::updateIdleSpringForce() {
+	return clip<double,double>((double)-metric.current.pos * idlespringscale, -idlespringclip, idlespringclip);
 }
 
 /*
@@ -410,8 +410,8 @@ void Axis::setIdleSpringStrength(uint8_t spring){
 	}else{
 		idle_center = true;
 	}
-	idlespringclip = clip<float,float>((float)spring * 50.0f, 0.0f, 10000.0f);
-	idlespringscale = 0.5f + ((float)spring * 0.01f);
+	idlespringclip = clip<double,double>((double)spring * 50.0, 0.0, 10000.0);
+	idlespringscale = 0.5f + ((double)spring * 0.01f);
 }
 
 void Axis::setDamperStrength(uint8_t damper){
@@ -423,7 +423,7 @@ void Axis::setDamperStrength(uint8_t damper){
  * Should calculate always on and idle effects specific to the axis like idlespring and friction
  */
 void Axis::calculateAxisEffects(bool ffb_on){
-	axisEffectTorque = 0.0f;
+	axisEffectTorque = 0.0;
 
 	if(idle_center){
 		axisEffectTorque += updateIdleSpringForce();
@@ -431,18 +431,24 @@ void Axis::calculateAxisEffects(bool ffb_on){
 
 	// Always active damper
 	if(damperIntensity != 0){
-		float dclip = (float)damperIntensity * 10.0f;
-		float damp = metric.current.speed * (float)damperIntensity * 0.25f;
+		double dclip = (double)damperIntensity * 15.0;
+		double damp = metric.current.speed * (double)damperIntensity * 0.25 / dclip;
 
-		axisEffectTorque -= clip<float, float>(damp, -dclip, dclip);
+		//damp = clip<double, double>(damp, -1.0, 1.0);
+
+		constexpr double s1 = 0.0;
+		constexpr double s2 = 1.0 - s1;
+		damp *= (abs(damp) + s1) / ((damp * damp) + s2 * abs(damp) + 1.0);
+
+		axisEffectTorque -= (damp * dclip);
 	}
 }
 
 void Axis::setNotchFilter() {
 	if (notchf < 100 || notchf >= 50000 || notchq < 1 || notchq >= 1000) {
-		notchFilter.setBiquad(BiquadType::bypass, 0.5f, 1.0f, 0.0f);
+		notchFilter.setBiquad(BiquadType::bypass, 0.5, 1.0, 0.0);
 	} else {
-		notchFilter.setBiquad(BiquadType::notch, (float)notchf * 0.01f, (float)notchq * 0.01f, 0.0f);
+		notchFilter.setBiquad(BiquadType::notch, (double)notchf * 0.01, (double)notchq * 0.01, 0.0);
 	}
 }
 
@@ -451,7 +457,7 @@ void Axis::setFxRatio(uint8_t val) {
 }
 
 
-void Axis::resetMetrics(float new_pos= 0) { // pos is degrees
+void Axis::resetMetrics(double new_pos= 0) { // pos is degrees
 	metric.current = metric_t();
 	metric.current.posDegrees = new_pos;
 	metric.current.pos = scaleEncValue(new_pos, degreesOfRotation);
@@ -462,7 +468,7 @@ void Axis::resetMetrics(float new_pos= 0) { // pos is degrees
 }
 
 
-void Axis::updateMetrics(float new_pos) { // pos is degrees
+void Axis::updateMetrics(double new_pos) { // pos is degrees
 	// store old value for next metric's computing
 	metric.previous = metric.current;
 
@@ -470,7 +476,7 @@ void Axis::updateMetrics(float new_pos) { // pos is degrees
 	int32_t scaled_pos = scaleEncValue(new_pos, degreesOfRotation);
 	metric.current.pos = scaled_pos;
 
-	metric.current.speedInstant = (new_pos - metric.previous.posDegrees) * 1000.0f; // deg/s
+	metric.current.speedInstant = (new_pos - metric.previous.posDegrees) * 1000.0; // deg/s
 
 	metric.current.speed = speedFilter.process(metric.current.speedInstant);
 
@@ -492,10 +498,10 @@ uint16_t Axis::getPower(){
 }
 
 void  Axis::updateTorqueScaler() {
-	torqueScaler = ((float)power / (float)0x7fff);
+	torqueScaler = ((double)power / (double)0x7fff);
 }
 
-float Axis::getTorqueScaler(){
+double Axis::getTorqueScaler(){
 	return torqueScaler;
 }
 
@@ -509,55 +515,41 @@ bool Axis::isInverted() {
 /**
  * Calculate soft endstop effect
  */
-float Axis::updateEndstop(){
-#if 1
-	float torque = 0.0f;
+double Axis::updateEndstop(){
 
-	float dor = (float)this->degreesOfRotation / 2;
-	float pos = metric.current.posDegrees;
+	double torque = 0.0;
 
-	float overshoot = fabsf(pos) - dor;
-	const float transition = 10.0f;
-	if (overshoot > 0.0f)
+	double dor = (double)this->degreesOfRotation * 0.5;
+	double pos = metric.current.posDegrees;
+
+	double overshoot = abs(pos) - dor;
+	const double transition = 10.0;
+	if (overshoot > 0.0)
 	{
-		float slope = 1.0f;
+		double slope = 1.0;
 		if (overshoot < transition)
 		{
-			float phaseRad = (float)M_PI * overshoot / (2.0f * transition); // we start to compute the normalized angle (speed / normalizedSpeed@5%) and translate it of -1/2PI to translate sin on 1/2 periode
-			slope = (1.0f + sinf(phaseRad)) * 0.5f;				// sin value is -1..1 range, we translate it to 0..2 and we scale it by 2
+			double phaseRad = M_PI * overshoot / (2.0 * transition); // we start to compute the normalized angle (speed / normalizedSpeed@5%) and translate it of -1/2PI to translate sin on 1/2 periode
+			slope = (1.0 + sin(phaseRad)) * 0.5;				// sin value is -1..1 range, we translate it to 0..2 and we scale it by 2
 		}
 
-		float springGain = (pos > 0.0f ? 1.0f : -1.0f) * (float)endstopStrength * endstopGain * slope * torqueScaler;
+		double springGain = (pos > 0.0 ? 1.0 : -1.0) * (double)endstopStrength * endstopGain * slope * torqueScaler;
 		torque -= overshoot * springGain;
 
-		float damperGain = (float)((fx_ratio_i - 102) / 4) * slope * torqueScaler;
+		double damperGain = (double)((fx_ratio_i - 102) / 4) * slope * torqueScaler;
 		torque -= metric.current.speed * damperGain;
 	}
 
 
 
 	return torque;
-#else
-	int8_t clipdir = cliptest<int32_t,int32_t>(metric.current.pos, -0x7fff, 0x7fff);
-	if(clipdir == 0){
-		return 0.0f;
-	}
-	float dir = (float)clipdir;
-	float addtorque = dir * metric.current.posDegrees - (float)(this->degreesOfRotation / 2); // degress of rotation counts total range so multiply by 2
-	addtorque *= (float)endstopStrength * endstopGain * torqueScaler; // Apply endstop gain for stiffness.
-	addtorque *= -dir;
-
-	addtorque -= metric.current.speed * (float)((fx_ratio_i - 102) / 4);
-
-	return addtorque;
-#endif
 }
 
-void Axis::setEffectTorque(float torque) {
+void Axis::setEffectTorque(double torque) {
 
-	if (fabsf(torque) > 0.0f) {
+	if (abs(torque) > 0.0) {
 		lastSetEffectTorque = HAL_GetTick();
-		effectTorqueScaler = effectTorqueScaler >= 1.0f ? 1.0f : effectTorqueScaler + effectTorqueRamp;
+		effectTorqueScaler = effectTorqueScaler >= 1.0 ? 1.0 : effectTorqueScaler + effectTorqueRamp;
 	}
 	effectTorque = torque;
 }
@@ -566,9 +558,9 @@ void Axis::setEffectTorque(float torque) {
 // return true if torque is clipping
 bool Axis::updateTorque(int32_t* totalTorque) {
 
-	if ((HAL_GetTick() - lastSetEffectTorque) > effectTorqueTimeout) effectTorqueScaler = 0.0f;
+	if ((HAL_GetTick() - lastSetEffectTorque) > effectTorqueTimeout) effectTorqueScaler = 0.0;
 
-	float torque = axisEffectTorque * torqueScaler;
+	double torque = axisEffectTorque * torqueScaler;
 	torque += effectTorque * effectTorqueScaler * torqueScaler;
 	torque += updateEndstop();
 
@@ -577,23 +569,23 @@ bool Axis::updateTorque(int32_t* totalTorque) {
 	// TODO speed and accel limiters
 	if(maxSpeedDegS > 0){
 
-		float torqueSign = torque > 0 ? 1 : -1; // Used to prevent metrics against the force to go into the limiter
+		double torqueSign = torque > 0 ? 1 : -1; // Used to prevent metrics against the force to go into the limiter
 		// Speed. Mostly tuned...
 		spdlimiterAvg.addValue(metric.current.speedInstant);
-		float speedreducer = (float)((spdlimiterAvg.getAverage()*torqueSign) - (float)maxSpeedDegS) * getSpeedScalerNormalized();
-		spdlimitreducerI = clip<float,int32_t>( spdlimitreducerI + ((speedreducer * 0.015) * torqueScaler),0,power);
+		double speedreducer = (double)((spdlimiterAvg.getAverage()*torqueSign) - (double)maxSpeedDegS) * getSpeedScalerNormalized();
+		spdlimitreducerI = clip<double,int32_t>( spdlimitreducerI + ((speedreducer * 0.015) * torqueScaler),0,power);
 
 		// Accel limit. Not really useful. Maybe replace with torque slew rate limit?
-//		float accreducer = (float)((metric.current.accel*torqueSign) - (float)maxAccelDegSS) * getAccelScalerNormalized();
-//		acclimitreducerI = clip<float,int32_t>( acclimitreducerI + ((accreducer * 0.02) * torqueScaler),0,power);
+//		double accreducer = (double)((metric.current.accel*torqueSign) - (double)maxAccelDegSS) * getAccelScalerNormalized();
+//		acclimitreducerI = clip<double,int32_t>( acclimitreducerI + ((accreducer * 0.02) * torqueScaler),0,power);
 
 
 		// Only reduce torque. Don't invert it to prevent oscillation
-		float torqueReduction = spdlimitreducerI + speedreducer * 0.025;// accreducer * 0.025 + acclimitreducerI
+		double torqueReduction = spdlimitreducerI + speedreducer * 0.025;// accreducer * 0.025 + acclimitreducerI
 		if(torque > 0){
-			torqueReduction = clip<float,int32_t>(torqueReduction,0,torque);
+			torqueReduction = clip<double,int32_t>(torqueReduction,0,torque);
 		}else{
-			torqueReduction = clip<float,int32_t>(-torqueReduction,torque,0);
+			torqueReduction = clip<double,int32_t>(-torqueReduction,torque,0);
 		}
 
 		torque -= torqueReduction;
@@ -605,7 +597,7 @@ bool Axis::updateTorque(int32_t* totalTorque) {
 	*/
 //	if(torque - metric.previous.torque)
 	if(outOfBounds){
-		torque = 0.0f;
+		torque = 0.0;
 	}
 
 	// Torque calculated. Now sending to driver

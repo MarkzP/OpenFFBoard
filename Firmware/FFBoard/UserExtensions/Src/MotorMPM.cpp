@@ -47,6 +47,7 @@ MotorMPM::MotorMPM() : CommandHandler("mpmdrv", CLSID_MOT_MPM)
 
 	restoreFlash();
 
+	sync = false;
 	ready = true;
 
 	CommandHandler::registerCommands();
@@ -56,6 +57,7 @@ MotorMPM::MotorMPM() : CommandHandler("mpmdrv", CLSID_MOT_MPM)
 
 MotorMPM::~MotorMPM()
 {
+	sync = false;
 	ready = false;
 	MotorMPM::mpmDriverInUse = false;
 }
@@ -128,7 +130,7 @@ int32_t MotorMPM::getPos()
 				rotation++;
 			}
 		}
-		else
+		else if (sync)
 		{
 			rotation = rawPosition < offset ? -1 : 0;
 			aligned = true;
@@ -180,6 +182,7 @@ void MotorMPM::SpiTxRxCplt(SPI_HandleTypeDef *hspi)
 	rawPosition = spiRx;
 
 	positionChanged = true;
+	sync = true;
 }
 
 
@@ -188,7 +191,8 @@ void MotorMPM::SpiError(SPI_HandleTypeDef *hspi)
 	if (hspi != spi) return;
 
 	HAL_SPI_Abort_IT(spi);
-
+	spiErrors++;
+	sync = false;
 	positionChanged = true;
 }
 
@@ -204,6 +208,8 @@ CommandStatus MotorMPM::command(const ParsedCommand& cmd,std::vector<CommandRepl
 			replies.emplace_back(
 					"OK ; Rdy=" + std::to_string(ready)
 					+ "; Enabled=" + std::to_string(enabled)
+					+ "; Sync=" + std::to_string(sync)
+					+ "; SpiErr=" + std::to_string(spiErrors)
 					+ "; INT=" + std::to_string(HAL_GPIO_ReadPin(IN_MPM_INT_GPIO_Port, IN_MPM_INT_Pin))
 					+ "; SS=" + std::to_string(HAL_GPIO_ReadPin(OUT_MPM_SS_GPIO_Port, OUT_MPM_SS_Pin))
 					+ " (" + std::to_string(rotation) + " * " + std::to_string(CPR)

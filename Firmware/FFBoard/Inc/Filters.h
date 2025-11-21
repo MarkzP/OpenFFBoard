@@ -25,20 +25,20 @@ enum class BiquadType : uint8_t {
 class Biquad{
 public:
 	Biquad();
-    Biquad(BiquadType type, float Fc, float Q, float peakGainDB);
+    Biquad(BiquadType type, double Fc, double Q, double peakGainDB);
     ~Biquad();
-    float process(float in);
-    void setBiquad(BiquadType type, float Fc, float Q, float peakGain);
-    void setFc(float Fc); //frequency
-    void setQ(float Q);
+    double process(double in);
+    void setBiquad(BiquadType type, double Fc, double Q, double peakGain);
+    void setFc(double Fc); //frequency
+    void setQ(double Q);
     void calcBiquad(void);
 
 protected:
 
     BiquadType type;
-    float a0, a1, a2, b1, b2;
-    float Fc, Q, peakGain;
-    float z1, z2;
+    double a0, a1, a2, b1, b2;
+    double Fc, Q, peakGain;
+    double z1, z2;
 };
 
 
