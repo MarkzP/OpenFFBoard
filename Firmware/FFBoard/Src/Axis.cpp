@@ -432,7 +432,7 @@ void Axis::calculateAxisEffects(bool ffb_on){
 	// Always active damper
 	if(damperIntensity != 0){
 		double dclip = (double)damperIntensity * 15.0;
-		double damp = metric.current.speed * (double)damperIntensity * 0.25 / dclip;
+		double damp = metric.current.speed * (double)damperIntensity * 0.5 / dclip;
 
 		//damp = clip<double, double>(damp, -1.0, 1.0);
 

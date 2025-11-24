@@ -72,7 +72,7 @@ const std::vector<class_entry<AnalogSource>> analog_sources =
 };
 
 FFBHIDMain::FFBHIDMain(uint8_t axisCount) :
-		btn_chooser(button_sources),analog_chooser(analog_sources)
+	Thread("FFBMAIN", 256, 30),btn_chooser(button_sources),analog_chooser(analog_sources)
 {
 	// Creates the required no of axis (Default 1)
 	effects_calc = std::make_unique<EffectsCalculator>();
@@ -94,6 +94,8 @@ FFBHIDMain::FFBHIDMain(uint8_t axisCount) :
 		lastEstop = HAL_GetTick();
 	}
 #endif
+
+	this->Start();
 }
 
 
@@ -134,11 +136,18 @@ void FFBHIDMain::saveFlash(){
 }
 
 
+void FFBHIDMain::Run(){
+	while(true){
+		DelayUntil(1);
+		updateControl();
+	}
+}
+
 /**
  * Periodical update method. Called from main loop
  */
 
-void FFBHIDMain::update(){
+void FFBHIDMain::updateControl(){
 	if(control.request_update_disabled) {
 		//logSerial("request update disabled");
 		control.update_disabled = true;
@@ -156,35 +165,17 @@ void FFBHIDMain::update(){
 	}
 
 
+	axes_manager->update();
 
-	// TODO Emulate a SOF timer...
-	if(HAL_GetTick() - lastUsbReportTick > 0 && !control.usb_disabled){
-		lastUsbReportTick = HAL_GetTick();
-		control.usb_update_flag  = true;
+	if(++report_rate_cnt >= usb_report_rate){
+		report_rate_cnt = 0;
+		this->send_report();
 	}
+	if(!control.emergency){
+		axes_manager->updateTorque();
 
-	// If either usb or timer triggered
-	if(control.usb_update_flag || control.update_flag){
-		//debugpin.set();
-		uint32_t prio = uxTaskPriorityGet((TaskHandle_t)defaultTaskHandle);
-		vTaskPrioritySet((TaskHandle_t)defaultTaskHandle,34); // Increase priority
-		axes_manager->update();
-		control.update_flag = false;
-		if(control.usb_update_flag){
-			control.usb_update_flag = false;
-			if(++report_rate_cnt >= usb_report_rate){
-					report_rate_cnt = 0;
-					this->send_report();
-			}
-		}
-		if(!control.emergency){
-			axes_manager->updateTorque();
-
-		}else{
-			pulseClipLed();
-		}
-		//debugpin.reset();
-		vTaskPrioritySet((TaskHandle_t)defaultTaskHandle,prio); // reset priority
+	}else{
+		pulseClipLed();
 	}
 }
 
@@ -349,12 +340,6 @@ std::string FFBHIDMain::usb_report_rates_names() {
 void FFBHIDMain::emergencyStop(bool reset){
 	control.emergency = !reset;
 	axes_manager->emergencyStop(reset);
-}
-
-void FFBHIDMain::timerElapsed(TIM_HandleTypeDef* htim){
-//	if(htim == this->timer_update){
-//		control.update_flag = true;
-//	}
 }
 
 

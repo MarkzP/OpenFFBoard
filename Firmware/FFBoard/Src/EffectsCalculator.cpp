@@ -122,7 +122,7 @@ void EffectsCalculator::calculateEffects(std::vector<std::unique_ptr<Axis>> &axe
 				continue;
 			}
 			// If effect has expired make inactive
-			if (HAL_GetTick() > effect->startTime + effect->duration)
+			if (HAL_GetTick() - effect->startTime > effect->duration)
 			{
 				effect->state = EFFECT_STATE_INACTIVE;
 			}
@@ -153,11 +153,11 @@ void EffectsCalculator::calculateEffects(std::vector<std::unique_ptr<Axis>> &axe
 	}
 
 	forceX = clip<double, double>(forceX, (double)-0x7fff, (double)0x7fff); // Clip
-	forceY = clip<double, double>(forceY, (double)-0x7fff, (double)0x7fff); // Clip
 
 	axes[0]->setEffectTorque((int32_t)forceX);
 	if (validY)
 	{
+		forceY = clip<double, double>(forceY, (double)-0x7fff, (double)0x7fff); // Clip
 		axes[1]->setEffectTorque((int32_t)forceY);
 	}
 }
