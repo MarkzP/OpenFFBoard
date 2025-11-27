@@ -317,7 +317,7 @@ void UART_CommandInterface::Run(){
 
 		WaitForNotification();
 		while(uartport->isTaken()){
-			Delay(1);
+			Delay(2);
 		}
 		this->sendBuffer.clear();
 		if(this->sendBuffer.capacity() > 100){

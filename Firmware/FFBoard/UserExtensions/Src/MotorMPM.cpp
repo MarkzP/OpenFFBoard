@@ -11,6 +11,7 @@
 #define CLSID_MOT_MPM		0xF1
 
 #define CPR	(1 << 16)
+static constexpr double oneCount = 1.0/(double)CPR;
 
 #if defined(STM32H743xx) || defined(STM32H723xx)
 extern SPI_HandleTypeDef hspi3;
@@ -81,7 +82,10 @@ void MotorMPM::turn(int16_t power)
 {
 	torque = enabled ? power : 0;
 
-	if (ready) HAL_GPIO_WritePin(OUT_MPM_SS_GPIO_Port, OUT_MPM_SS_Pin, GPIO_PIN_SET);
+	if (!ready) return;
+
+	xTaskToNotify = nullptr;
+	HAL_GPIO_WritePin(OUT_MPM_SS_GPIO_Port, OUT_MPM_SS_Pin, GPIO_PIN_SET);
 }
 
 
@@ -109,41 +113,52 @@ bool MotorMPM::motorReady()
 
 int32_t MotorMPM::getPos()
 {
-	if (positionChanged)
+	if (!ready) return position;
+
+	xTaskToNotify = xTaskGetCurrentTaskHandle();
+	HAL_GPIO_WritePin(OUT_MPM_SS_GPIO_Port, OUT_MPM_SS_Pin, GPIO_PIN_SET);
+	ulTaskNotifyTake(pdTRUE, 1);
+	xTaskToNotify = nullptr;
+
+	if (!positionChanged) return position;
+
+	encoderAngle = (int16_t)rawPosition;
+
+	positionChanged = false;
+
+	if (aligned)
 	{
-		encoderAngle = (int16_t)rawPosition;
+		int32_t delta =  encoderAngle - lastEncoderAngle;
 
-		positionChanged = false;
-
-		if (ready) HAL_GPIO_WritePin(OUT_MPM_SS_GPIO_Port, OUT_MPM_SS_Pin, GPIO_PIN_SET);
-
-		if (aligned)
+		if (delta > (CPR / 2))
 		{
-			int32_t delta =  encoderAngle - lastEncoderAngle;
-
-			if (delta > (CPR / 2))
-			{
-				rotation--;
-			}
-			else if (delta < -(CPR / 2))
-			{
-				rotation++;
-			}
+			rotation--;
 		}
-		else if (sync)
+		else if (delta < -(CPR / 2))
 		{
-			rotation = rawPosition < offset ? -1 : 0;
-			aligned = true;
+			rotation++;
 		}
-
-		lastEncoderAngle = encoderAngle;
-
-		position = (rotation * CPR) + encoderAngle + offset;
 	}
+	else if (sync)
+	{
+		rotation = rawPosition < offset ? -1 : 0;
+		aligned = true;
+	}
+	else
+	{
+		sync = true;
+	}
+
+	lastEncoderAngle = encoderAngle;
+
+	position = (rotation * CPR) + encoderAngle + offset;
 
 	return position;
 }
 
+double MotorMPM::getPosAbs_f(){
+	return (double)this->getPos() * oneCount;
+}
 
 void MotorMPM::setPos(int32_t pos)
 {
@@ -182,7 +197,12 @@ void MotorMPM::SpiTxRxCplt(SPI_HandleTypeDef *hspi)
 	rawPosition = spiRx;
 
 	positionChanged = true;
-	sync = true;
+
+	if (xTaskToNotify != nullptr) {
+		BaseType_t pxHigherPriorityTaskWoken;
+		vTaskNotifyGiveFromISR(xTaskToNotify, &pxHigherPriorityTaskWoken);
+		portYIELD_FROM_ISR(pxHigherPriorityTaskWoken);
+	}
 }
 
 

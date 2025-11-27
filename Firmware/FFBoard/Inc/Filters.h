@@ -19,6 +19,8 @@ enum class BiquadType : uint8_t {
     peak,
     lowshelf,
     highshelf,
+	lowpass_1p1z,
+	highpass_1p1z,
 	bypass
 };
 

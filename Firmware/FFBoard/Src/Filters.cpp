@@ -82,103 +82,117 @@ void Biquad::calcBiquad(void) {
     double norm;
     double V;
     double K = tan(M_PI * Fc);
+    double K2 = K * K;
     switch (this->type) {
         case BiquadType::lowpass:
-            norm = 1.0 / (1.0 + K / Q + K * K);
-            a0 = K * K * norm;
+            norm = 1.0 / (1.0 + K / Q + K2);
+            a0 = K2 * norm;
             a1 = 2.0 * a0;
             a2 = a0;
-            b1 = 2.0 * (K * K - 1.0) * norm;
-            b2 = (1.0 - K / Q + K * K) * norm;
+            b1 = 2.0 * (K2 - 1.0) * norm;
+            b2 = (1.0 - K / Q + K2) * norm;
             break;
 
         case BiquadType::highpass:
-            norm = 1.0 / (1.0 + K / Q + K * K);
+            norm = 1.0 / (1.0 + K / Q + K2);
             a0 = 1.0 * norm;
             a1 = -2.0 * a0;
             a2 = a0;
-            b1 = 2.0 * (K * K - 1.0) * norm;
-            b2 = (1.0 - K / Q + K * K) * norm;
+            b1 = 2.0 * (K2 - 1.0) * norm;
+            b2 = (1.0 - K / Q + K2) * norm;
             break;
 
         case BiquadType::bandpass:
-            norm = 1.0 / (1.0 + K / Q + K * K);
+            norm = 1.0 / (1.0 + K / Q + K2);
             a0 = K / Q * norm;
             a1 = 0;
             a2 = -a0;
-            b1 = 2.0 * (K * K - 1.0) * norm;
-            b2 = (1.0 - K / Q + K * K) * norm;
+            b1 = 2.0 * (K2 - 1.0) * norm;
+            b2 = (1.0 - K / Q + K2) * norm;
             break;
 
         case BiquadType::notch:
-            norm = 1.0 / (1.0 + K / Q + K * K);
-            a0 = (1.0 + K * K) * norm;
-            a1 = 2.0 * (K * K - 1.0) * norm;
+            norm = 1.0 / (1.0 + K / Q + K2);
+            a0 = (1.0 + K2) * norm;
+            a1 = 2.0 * (K2 - 1.0) * norm;
             a2 = a0;
             b1 = a1;
-            b2 = (1.0 - K / Q + K * K) * norm;
+            b2 = (1.0 - K / Q + K2) * norm;
             break;
 
         case BiquadType::peak:
         	V = pow(10.0, abs(peakGain) / 20.0);
         	if (peakGain >= 0) {    // boost
-                norm = 1.0 / (1.0 + 1.0/Q * K + K * K);
-                a0 = (1.0 + V/Q * K + K * K) * norm;
-                a1 = 2.0 * (K * K - 1) * norm;
-                a2 = (1.0 - V/Q * K + K * K) * norm;
+                norm = 1.0 / (1.0 + 1.0/Q * K + K2);
+                a0 = (1.0 + V / Q * K + K2) * norm;
+                a1 = 2.0 * (K2 - 1) * norm;
+                a2 = (1.0 - V / Q * K + K2) * norm;
                 b1 = a1;
-                b2 = (1.0 - 1.0/Q * K + K * K) * norm;
+                b2 = (1.0 - 1.0/Q * K + K2) * norm;
             }
             else {    // cut
-                norm = 1.0 / (1.0 + V/Q * K + K * K);
-                a0 = (1.0 + 1.0/Q * K + K * K) * norm;
-                a1 = 2.0 * (K * K - 1.0) * norm;
-                a2 = (1.0 - 1.0/Q * K + K * K) * norm;
+                norm = 1.0 / (1.0 + V/Q * K + K2);
+                a0 = (1.0 + 1.0/Q * K + K2) * norm;
+                a1 = 2.0 * (K2 - 1.0) * norm;
+                a2 = (1.0 - 1.0/Q * K + K2) * norm;
                 b1 = a1;
-                b2 = (1.0 - V/Q * K + K * K) * norm;
+                b2 = (1.0 - V/Q * K + K2) * norm;
             }
             break;
         case BiquadType::lowshelf:
         	V = pow(10.0, abs(peakGain) / 20.0);
             if (peakGain >= 0) {    // boost
-                norm = 1.0 / (1.0 + sqrt(2.0) * K + K * K);
-                a0 = (1.0 + sqrt(2.0*V) * K + V * K * K) * norm;
-                a1 = 2.0 * (V * K * K - 1.0) * norm;
-                a2 = (1.0 - sqrt(2.0*V) * K + V * K * K) * norm;
-                b1 = 2.0 * (K * K - 1.0) * norm;
-                b2 = (1.0 - sqrt(2.0) * K + K * K) * norm;
+                norm = 1.0 / (1.0 + sqrt(2.0) * K + K2);
+                a0 = (1.0 + sqrt(2.0 * V) * K + V * K2) * norm;
+                a1 = 2.0 * (V * K2 - 1.0) * norm;
+                a2 = (1.0 - sqrt(2.0 * V) * K + V * K2) * norm;
+                b1 = 2.0 * (K2 - 1.0) * norm;
+                b2 = (1.0 - sqrt(2.0) * K + K2) * norm;
             }
             else {    // cut
-                norm = 1.0 / (1.0 + sqrt(2.0*V) * K + V * K * K);
-                a0 = (1.0 + sqrt(2.0) * K + K * K) * norm;
-                a1 = 2.0 * (K * K - 1.0) * norm;
-                a2 = (1.0 - sqrt(2.0) * K + K * K) * norm;
-                b1 = 2.0 * (V * K * K - 1) * norm;
-                b2 = (1.0 - sqrt(2.0*V) * K + V * K * K) * norm;
+                norm = 1.0 / (1.0 + sqrt(2.0*V) * K + V * K2);
+                a0 = (1.0 + sqrt(2.0) * K + K2) * norm;
+                a1 = 2.0 * (K2 - 1.0) * norm;
+                a2 = (1.0 - sqrt(2.0) * K + K2) * norm;
+                b1 = 2.0 * (V * K2 - 1) * norm;
+                b2 = (1.0 - sqrt(2.0*V) * K + V * K2) * norm;
             }
             break;
         case BiquadType::highshelf:
         	V = pow(10.0, abs(peakGain) / 20.0);
             if (peakGain >= 0) {    // boost
-                norm = 1.0 / (1.0 + sqrt(2.0) * K + K * K);
-                a0 = (V + sqrt(2.0*V) * K + K * K) * norm;
-                a1 = 2.0 * (K * K - V) * norm;
-                a2 = (V - sqrt(2.0*V) * K + K * K) * norm;
-                b1 = 2.0 * (K * K - 1.0) * norm;
-                b2 = (1.0 - sqrt(2.0) * K + K * K) * norm;
+                norm = 1.0 / (1.0 + sqrt(2.0) * K + K2);
+                a0 = (V + sqrt(2.0*V) * K + K2) * norm;
+                a1 = 2.0 * (K2 - V) * norm;
+                a2 = (V - sqrt(2.0*V) * K + K2) * norm;
+                b1 = 2.0 * (K2 - 1.0) * norm;
+                b2 = (1.0 - sqrt(2.0) * K + K2) * norm;
             }
             else {    // cut
-                norm = 1.0 / (V + sqrt(2.0*V) * K + K * K);
-                a0 = (1.0 + sqrt(2.0) * K + K * K) * norm;
-                a1 = 2.0 * (K * K - 1.0) * norm;
-                a2 = (1.0 - sqrt(2.0) * K + K * K) * norm;
-                b1 = 2.0 * (K * K - V) * norm;
-                b2 = (V - sqrt(2.0*V) * K + K * K) * norm;
+                norm = 1.0 / (V + sqrt(2.0*V) * K + K2);
+                a0 = (1.0 + sqrt(2.0) * K + K2) * norm;
+                a1 = 2.0 * (K2 - 1.0) * norm;
+                a2 = (1.0 - sqrt(2.0) * K + K2) * norm;
+                b1 = 2.0 * (K2 - V) * norm;
+                b2 = (V - sqrt(2.0*V) * K + K2) * norm;
             }
             break;
+        case BiquadType::lowpass_1p1z:
+        	norm = 1.0 / (1.0 / K + 1.0);
+        	a0 = a1 = norm;
+        	b1 = (1.0 - 1.0 / K) * norm;
+        	a2 = b2 = 0.0;
+        	break;
+        case BiquadType::highpass_1p1z:
+        	norm = 1.0 / (K + 1.0);
+        	a0 = norm;
+        	a1 = -norm;
+        	b1 = (K - 1.0) * norm;
+        	a2 = b2 = 0.0;
+        	break;
         case BiquadType::bypass:
-        		a0 = 1.0;
-        		a1 = a2 = b1 = b2 = 0.0;
+        	a0 = 1.0;
+        	a1 = a2 = b1 = b2 = 0.0;
         	break;
     }
 

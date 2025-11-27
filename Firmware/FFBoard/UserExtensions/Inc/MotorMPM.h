@@ -43,6 +43,7 @@ public:
 	bool motorReady();
 
 	int32_t getPos();
+	double getPosAbs_f();
 	void setPos(int32_t pos);
 
 	uint32_t getCpr(); // Encoder counts per rotation
@@ -60,7 +61,7 @@ public:
 	static bool mpmDriverInUse;
 
 private:
-	uint16_t rawPosition;
+	volatile uint16_t rawPosition;
 	int32_t encoderAngle;
 	int32_t lastEncoderAngle;
 	int16_t torque;
@@ -71,7 +72,7 @@ private:
 	bool ready = false;
 	bool sync = false;
 	bool aligned = false;
-	bool positionChanged = false;
+	volatile bool positionChanged = false;
 
 	int spiErrors = 0;
 
@@ -81,6 +82,8 @@ private:
 	volatile uint16_t spiRx;
 
 	volatile bool enabled = false;
+
+	TaskHandle_t xTaskToNotify = nullptr;
 };
 
 #endif /* MOTORMPM_H_ */

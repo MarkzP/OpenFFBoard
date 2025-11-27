@@ -209,13 +209,10 @@ void Axis::errorCallback(const Error &error, bool cleared){
 
 
 void Axis::updateDriveTorque(){
-	// totalTorque = effectTorque + endstopTorque
-	int32_t totalTorque;
-	bool torqueChanged = updateTorque(&totalTorque);
-	if (torqueChanged && drv->motorReady()){
-		// Send to motor driver
-		drv->turn((int16_t)totalTorque);
-	}
+	int32_t totalTorque = 0;
+	updateTorque(&totalTorque);
+	// Send to motor driver
+	drv->turn((int16_t)totalTorque);
 }
 
 void Axis::setPower(uint16_t power)
@@ -429,7 +426,7 @@ void Axis::calculateAxisEffects(bool ffb_on){
 		axisEffectTorque += updateIdleSpringForce();
 	}
 
-	// Always active damper
+	// Always active damper (more like friction)
 	if(damperIntensity != 0){
 		double dclip = (double)damperIntensity * 15.0;
 		double damp = metric.current.speed * (double)damperIntensity * 0.5 / dclip;
@@ -442,6 +439,9 @@ void Axis::calculateAxisEffects(bool ffb_on){
 
 		axisEffectTorque -= (damp * dclip);
 	}
+
+	// TODO: Always active inertia
+
 }
 
 void Axis::setNotchFilter() {
@@ -606,10 +606,6 @@ bool Axis::updateTorque(int32_t* totalTorque) {
 	metric.current.torque = finalTorque;
 
 	bool torqueChanged = finalTorque != metric.previous.torque;
-
-	if (abs(finalTorque) == power){
-		pulseClipLed();
-	}
 
 	*totalTorque = finalTorque;
 	return (torqueChanged);

@@ -291,6 +291,7 @@ void FFBHIDMain::send_report(){
 			setHidReportAxis(&reportHID,count++,val);
 		}
 	}
+
 	sourcesSem.Give();
 	// Fill rest
 	for(;count<analogAxisCount; count++){
@@ -306,13 +307,11 @@ void FFBHIDMain::send_report(){
 		&& !(reportSendCounter < usb_report_rate*2 && this->hidCommands->waitingToSend())) // Check if HID command interface wants to send something and allow that if we did not skip the last report
 	{
 
-
-	tud_hid_report(0, reinterpret_cast<uint8_t*>(&reportHID), sizeof(reportHID_t));
-	lastReportHID = reportHID;
-	reportSendCounter = 0;
+		tud_hid_report(0, reinterpret_cast<uint8_t*>(&reportHID), sizeof(reportHID_t));
+		lastReportHID = reportHID;
+		reportSendCounter = 0;
 
 	}
-
 }
 
 /**

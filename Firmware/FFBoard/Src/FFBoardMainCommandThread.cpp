@@ -55,7 +55,7 @@ void FFBoardMainCommandThread::Run(){
 
 		FFBoardMainCommandThread::threadSem.Take(); // Stop thread again. will be resumed when parser ready
 
-		Delay(1); // Give the scheduler time
+		Delay(2); // Give the scheduler time
 	}
 }
 
@@ -126,7 +126,7 @@ void FFBoardMainCommandThread::executeCommands(std::vector<ParsedCommand>& comma
 				// Block until replies are sent
 				uint32_t remainingTime = 100;
 				while(!itf->readyToSend() && --remainingTime){
-					Delay(1);
+					Delay(2);
 				}
 				if(remainingTime)
 					itf->sendReplies(results, commandInterface);
