@@ -247,12 +247,12 @@ typedef struct
 
 typedef struct
 {
-	int16_t cpOffset = 0; // Center point
-	int16_t positiveCoefficient = 0;
-	int16_t negativeCoefficient = 0;
-	uint16_t positiveSaturation = 0;
-	uint16_t negativeSaturation = 0;
-	uint16_t deadBand = 0;
+	double cpOffset = 0; // Center point
+	double positiveCoefficient = 0;
+	double negativeCoefficient = 0;
+	double positiveSaturation = 0;
+	double negativeSaturation = 0;
+	double deadBand = 0;
 
 } __attribute__((packed)) FFB_Effect_Condition;
 

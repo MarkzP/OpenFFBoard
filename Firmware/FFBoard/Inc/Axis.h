@@ -53,6 +53,8 @@ struct AxisConfig
 	//bool invert = false;
 };
 struct metric_t {
+	uint32_t time = 0;
+	double delta = 0.0;
 	double accel = 0;	// in deg/s²
 	double accelInstant = 0;
 	double speed = 0;
@@ -70,7 +72,7 @@ struct axis_metric_t {
 
 
 enum class Axis_commands : uint32_t{
-	power=0x00,degrees=0x01,esgain,zeroenc,invert,idlespring,axisdamper,enctype,drvtype,pos,notchf,notchq,fxratio,curtorque,curpos
+	power=0x00,degrees=0x01,esgain,zeroenc,invert,idlespring,axisdamper,enctype,drvtype,pos,notchf,notchq,fxratio,curtorque,curpos,delta_us
 };
 
 class Axis : public PersistentStorage, public CommandHandler, public ErrorHandler
@@ -239,7 +241,7 @@ private:
 	double idlespringscale = 0.0f;
 	bool idle_center = false;
 
-	double speed_f = 25.0 , speed_q = 0.6;
+	double speed_f = 20.0 , speed_q = 0.7;
 	double accel_f = 120.0 , accel_q = 0.3;
 	const double filter_f = 1000.0f; // 1khz
 	const double damperClip = 15000.0f;

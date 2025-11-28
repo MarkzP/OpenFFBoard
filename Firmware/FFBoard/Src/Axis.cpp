@@ -76,6 +76,7 @@ void Axis::registerCommands(){
 	registerCommand("fxratio", Axis_commands::fxratio, "Effect ratio. Reduces effects excluding endstop. 255=100%",CMDFLAG_GET | CMDFLAG_SET);
 	registerCommand("curtorque", Axis_commands::curtorque, "Axis torque",CMDFLAG_GET);
 	registerCommand("curpos", Axis_commands::curpos, "Axis position",CMDFLAG_GET);
+	registerCommand("delta", Axis_commands::delta_us, "Axis Time",CMDFLAG_GET);
 }
 
 /*
@@ -463,14 +464,17 @@ void Axis::resetMetrics(double new_pos= 0) { // pos is degrees
 	metric.current.pos = scaleEncValue(new_pos, degreesOfRotation);
 	metric.previous = metric_t();
 	// Reset filters
-	speedFilter.calcBiquad();
-	accelFilter.calcBiquad();
+	speedFilter.reset();
+	accelFilter.reset();
 }
 
 
 void Axis::updateMetrics(double new_pos) { // pos is degrees
 	// store old value for next metric's computing
 	metric.previous = metric.current;
+
+	metric.current.time = DWT->CYCCNT;
+	metric.current.delta = clip<double,double>((double)(metric.current.time - metric.previous.time) / (double)SystemCoreClock, 0.0005, 0.0015);
 
 	metric.current.posDegrees = new_pos;
 	int32_t scaled_pos = scaleEncValue(new_pos, degreesOfRotation);
@@ -750,6 +754,9 @@ CommandStatus Axis::command(const ParsedCommand& cmd,std::vector<CommandReply>& 
 		break;
 	case Axis_commands::curtorque:
 		replies.emplace_back(this->metric.current.torque);
+		break;
+	case Axis_commands::delta_us:
+		replies.emplace_back(this->metric.current.delta * 1000000.0);
 		break;
 
 	default:

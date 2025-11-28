@@ -18,7 +18,7 @@ uint32_t clkmhz = HAL_RCC_GetHCLKFreq() / 100000;
 extern TIM_HandleTypeDef TIM_MICROS;
 
 #ifdef HAL_IWDG_MODULE_ENABLED
-extern IWDG_HandleTypeDef hiwdg; // Watchdog
+extern IWDG_HandleTypeDef hiwdg1; // Watchdog
 #endif
 
 bool running = true;
@@ -113,7 +113,7 @@ void cppmain() {
 
 void refreshWatchdog(){
 #ifdef HAL_IWDG_MODULE_ENABLED
-	HAL_IWDG_Refresh(&hiwdg); // Refresh watchdog
+	HAL_IWDG_Refresh(&hiwdg1); // Refresh watchdog
 #endif
 }
 

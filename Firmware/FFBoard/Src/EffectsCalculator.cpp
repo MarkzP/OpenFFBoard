@@ -357,7 +357,7 @@ double EffectsCalculator::calcComponentForce(FFB_Effect *effect, double forceVec
 
 		double speed = metrics->speed * scaleSpeed;
 
-		double deadBand = (double)effect->conditions[con_idx].deadBand;
+		double deadBand = effect->conditions[con_idx].deadBand;
 		double force = 0.0;
 
 		double sign = speed < 0.0 ? -1.0 : 1.0;
@@ -394,7 +394,7 @@ double EffectsCalculator::calcComponentForce(FFB_Effect *effect, double forceVec
 	}
 	case FFB_EFFECT_DAMPER:
 	{
-		effect->conditions[con_idx].cpOffset = 0;
+		effect->conditions[con_idx].cpOffset = 0.0;
 		double speed = metrics->speed * scaleSpeed;
 		result_torque -= effect->filter[con_idx]->process(calcConditionEffectForce(effect, speed, gain.damper, con_idx, damper_scaler, angle_ratio));
 
@@ -403,7 +403,7 @@ double EffectsCalculator::calcComponentForce(FFB_Effect *effect, double forceVec
 
 	case FFB_EFFECT_INERTIA:
 	{
-		effect->conditions[con_idx].cpOffset = 0;
+		effect->conditions[con_idx].cpOffset = 0.0;
 		double accel = metrics->accel* scaleAccel;
 		result_torque -= effect->filter[con_idx]->process(calcConditionEffectForce(effect, accel, gain.inertia, con_idx, inertia_scaler, angle_ratio)); // Bump *60 the inertia feedback
 
@@ -426,16 +426,16 @@ double EffectsCalculator::calcComponentForce(FFB_Effect *effect, double forceVec
 double EffectsCalculator::calcConditionEffectForce(FFB_Effect *effect, double  metric, uint8_t gain,
 										 uint8_t idx, double scale, double angle_ratio)
 {
-	double offset = (double)effect->conditions[idx].cpOffset;
-	double deadBand = (double)effect->conditions[idx].deadBand;
+	double offset = effect->conditions[idx].cpOffset;
+	double deadBand = effect->conditions[idx].deadBand;
 	double force = 0;
 	double gainfactor = (double)(gain+1) / 256.0;
 
 	// Effect is only active outside deadband + offset
 	if (abs(metric - offset) > deadBand){
-		double coefficient = (double)effect->conditions[idx].negativeCoefficient;
+		double coefficient = effect->conditions[idx].negativeCoefficient;
 		if(metric > offset){
-			coefficient = (double)effect->conditions[idx].positiveCoefficient;
+			coefficient = effect->conditions[idx].positiveCoefficient;
 		}
 		coefficient /= (double)0x7fff; // rescale the coefficient of effect
 
@@ -443,8 +443,8 @@ double EffectsCalculator::calcConditionEffectForce(FFB_Effect *effect, double  m
 		metric = metric - (offset + (deadBand * (metric < offset ? -1.0 : 1.0)) );
 
 		force = clip<double, double>((coefficient * gainfactor * scale * metric),
-										(double)-effect->conditions[idx].negativeSaturation,
-										(double)effect->conditions[idx].positiveSaturation);
+										-effect->conditions[idx].negativeSaturation,
+										effect->conditions[idx].positiveSaturation);
 	}
 
 

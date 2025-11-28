@@ -41,8 +41,7 @@ void Biquad::setFc(double Fc) {
  */
 void Biquad::setQ(double Q) {
     if (Q == this->Q) {
-    	z1 = 0.0;
-    	z2 = 0.0;
+    	reset();
     	return;
     }
 	this->Q = Q;
@@ -62,8 +61,7 @@ double Biquad::process(double in) {
 void Biquad::setBiquad(BiquadType type, double Fc, double Q, double peakGainDB) {
 	Fc = clip<double,double>(Fc,0,0.5);
 	if (type == this->type && Q == this->Q && Fc == this->Fc && peakGainDB == this->peakGain) {
-		z1 = 0.0;
-		z2 = 0.0;
+		reset();
 		return;
 	}
     this->type = type;
@@ -73,16 +71,21 @@ void Biquad::setBiquad(BiquadType type, double Fc, double Q, double peakGainDB) 
     calcBiquad();
 }
 
+void Biquad::reset()
+{
+	z1 = 0.0;
+	z2 = 0.0;
+}
+
 /*
  * Updates parameters and resets the biquad filter
  */
 void Biquad::calcBiquad(void) {
-	z1 = 0.0;
-	z2 = 0.0;
     double norm;
     double V;
     double K = tan(M_PI * Fc);
     double K2 = K * K;
+    reset();
     switch (this->type) {
         case BiquadType::lowpass:
             norm = 1.0 / (1.0 + K / Q + K2);

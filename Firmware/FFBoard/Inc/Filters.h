@@ -33,6 +33,7 @@ public:
     void setBiquad(BiquadType type, double Fc, double Q, double peakGain);
     void setFc(double Fc); //frequency
     void setQ(double Q);
+    void reset();
     void calcBiquad(void);
 
 protected:
