@@ -68,15 +68,14 @@ void Axis::registerCommands(){
 	registerCommand("invert", Axis_commands::invert, "Invert axis",CMDFLAG_GET | CMDFLAG_SET);
 	registerCommand("idlespring", Axis_commands::idlespring, "Idle spring strength",CMDFLAG_GET | CMDFLAG_SET);
 	registerCommand("axisdamper", Axis_commands::axisdamper, "Independent damper effect",CMDFLAG_GET | CMDFLAG_SET);
+	registerCommand("axisinertia", Axis_commands::axisinertia, "Independent inertia effect",CMDFLAG_GET | CMDFLAG_SET);
+	registerCommand("axisfriction", Axis_commands::axisfriction, "Independent friction effect",CMDFLAG_GET | CMDFLAG_SET);
 	registerCommand("enctype", Axis_commands::enctype, "Encoder type get/set/list",CMDFLAG_GET | CMDFLAG_SET | CMDFLAG_INFOSTRING);
 	registerCommand("drvtype", Axis_commands::drvtype, "Motor driver type get/set/list",CMDFLAG_GET | CMDFLAG_SET | CMDFLAG_INFOSTRING);
 	registerCommand("pos", Axis_commands::pos, "Encoder position",CMDFLAG_GET);
-	registerCommand("notchf", Axis_commands::notchf, "Notch filter frequency *100",CMDFLAG_GET | CMDFLAG_SET);
-	registerCommand("notchq", Axis_commands::notchq, "Notch filter Q *100",CMDFLAG_GET | CMDFLAG_SET);
 	registerCommand("fxratio", Axis_commands::fxratio, "Effect ratio. Reduces effects excluding endstop. 255=100%",CMDFLAG_GET | CMDFLAG_SET);
 	registerCommand("curtorque", Axis_commands::curtorque, "Axis torque",CMDFLAG_GET);
 	registerCommand("curpos", Axis_commands::curpos, "Axis position",CMDFLAG_GET);
-	registerCommand("delta", Axis_commands::delta_us, "Axis Time",CMDFLAG_GET);
 }
 
 /*
@@ -94,10 +93,6 @@ void Axis::restoreFlash(){
 
 	setDrvType(this->conf.drvtype);
 	setEncType(this->conf.enctype);
-
-	if (!Flash_Read(flashAddrs.notchf, &notchf)) notchf = 0;
-	if (!Flash_Read(flashAddrs.notchq, &notchq)) notchq = 0;
-	setNotchFilter();
 
 	uint16_t esval, power;
 	if(Flash_Read(flashAddrs.endstop, &esval)) {
@@ -120,20 +115,25 @@ void Axis::restoreFlash(){
 	uint16_t effects;
 	if(Flash_Read(flashAddrs.effects1, &effects)){
 		setIdleSpringStrength(effects & 0xff);
-		setDamperStrength((effects >> 8) & 0xff);
+		damperIntensity = (effects >> 8) & 0xff;
 	}
 
+	if(Flash_Read(flashAddrs.effects2, &effects)){
+		inertiaIntensity = effects & 0xff;
+		frictionIntensity = (effects >> 8) & 0xff;
+	}
 }
 // Saves parameters to flash.
 void Axis::saveFlash(){
 	//NormalizedAxis::saveFlash();
 	Flash_Write(flashAddrs.config, Axis::encodeConfToInt(this->conf));
-	Flash_Write(flashAddrs.notchf, notchf);
-	Flash_Write(flashAddrs.notchq, notchq);
+	Flash_Write(flashAddrs.notchf, 0);
+	Flash_Write(flashAddrs.notchq, 0);
 	Flash_Write(flashAddrs.endstop, fx_ratio_i | (endstopStrength << 8));
 	Flash_Write(flashAddrs.power, power);
 	Flash_Write(flashAddrs.degrees, (degreesOfRotation & 0x7fff) | (invertAxis << 15));
 	Flash_Write(flashAddrs.effects1, idlespringstrength | (damperIntensity << 8));
+	Flash_Write(flashAddrs.effects2, inertiaIntensity | (frictionIntensity << 8));
 }
 
 
@@ -210,8 +210,7 @@ void Axis::errorCallback(const Error &error, bool cleared){
 
 
 void Axis::updateDriveTorque(){
-	int32_t totalTorque = 0;
-	updateTorque(&totalTorque);
+	int32_t totalTorque = getTotalTorque();
 	// Send to motor driver
 	drv->turn((int16_t)totalTorque);
 }
@@ -412,9 +411,6 @@ void Axis::setIdleSpringStrength(uint8_t spring){
 	idlespringscale = 0.5f + ((double)spring * 0.01f);
 }
 
-void Axis::setDamperStrength(uint8_t damper){
-	this->damperIntensity = damper;
-}
 
 /*
  * Called before HID effects are calculated
@@ -428,30 +424,24 @@ void Axis::calculateAxisEffects(bool ffb_on){
 	}
 
 	// Always active damper (more like friction)
-	if(damperIntensity != 0){
+	double damper = 0.0;
+	if(damperIntensity != 0)
+	{
 		double dclip = (double)damperIntensity * 15.0;
-		double damp = metric.current.speed * (double)damperIntensity * 0.5 / dclip;
-
-		//damp = clip<double, double>(damp, -1.0, 1.0);
+		damper = metric.current.speed * (double)damperIntensity * 0.5 / dclip;
 
 		constexpr double s1 = 0.0;
 		constexpr double s2 = 1.0 - s1;
-		damp *= (abs(damp) + s1) / ((damp * damp) + s2 * abs(damp) + 1.0);
-
-		axisEffectTorque -= (damp * dclip);
+		damper *= (abs(damper) + s1) / ((damper * damper) + s2 * abs(damper) + 1.0);
+		damper *= dclip;
 	}
 
-	// TODO: Always active inertia
+	axisEffectTorque -= damperFilter.process(damper);
 
+	// Always active inertia
+	axisEffectTorque -= inertiaFilter.process(metric.current.accel * 10.0) * (double)inertiaIntensity;
 }
 
-void Axis::setNotchFilter() {
-	if (notchf < 100 || notchf >= 50000 || notchq < 1 || notchq >= 1000) {
-		notchFilter.setBiquad(BiquadType::bypass, 0.5, 1.0, 0.0);
-	} else {
-		notchFilter.setBiquad(BiquadType::notch, (double)notchf * 0.01, (double)notchq * 0.01, 0.0);
-	}
-}
 
 void Axis::setFxRatio(uint8_t val) {
 	fx_ratio_i = val;
@@ -462,7 +452,19 @@ void Axis::resetMetrics(double new_pos= 0) { // pos is degrees
 	metric.current = metric_t();
 	metric.current.posDegrees = new_pos;
 	metric.current.pos = scaleEncValue(new_pos, degreesOfRotation);
+
+	metric.previous_0 = metric_t();
+	metric.previous_1 = metric_t();
+	metric.previous_2 = metric_t();
+	metric.previous_3 = metric_t();
+	metric.previous_4 = metric_t();
+	metric.previous_5 = metric_t();
+	metric.previous_6 = metric_t();
+	metric.previous_7 = metric_t();
+	metric.previous_8 = metric_t();
+	metric.previous_9 = metric_t();
 	metric.previous = metric_t();
+
 	// Reset filters
 	speedFilter.reset();
 	accelFilter.reset();
@@ -471,21 +473,28 @@ void Axis::resetMetrics(double new_pos= 0) { // pos is degrees
 
 void Axis::updateMetrics(double new_pos) { // pos is degrees
 	// store old value for next metric's computing
-	metric.previous = metric.current;
+	//metric.previous = metric.current;
+	metric.previous = metric.previous_9;
 
-	metric.current.time = DWT->CYCCNT;
-	metric.current.delta = clip<double,double>((double)(metric.current.time - metric.previous.time) / (double)SystemCoreClock, 0.0005, 0.0015);
+	metric.previous_9 = metric.previous_8;
+	metric.previous_8 = metric.previous_7;
+	metric.previous_7 = metric.previous_6;
+	metric.previous_6 = metric.previous_5;
+	metric.previous_5 = metric.previous_4;
+	metric.previous_4 = metric.previous_3;
+	metric.previous_3 = metric.previous_2;
+	metric.previous_2 = metric.previous_1;
+	metric.previous_1 = metric.previous_0;
+	metric.previous_0 = metric.current;
+
+	metric.current.pos = scaleEncValue(new_pos, degreesOfRotation);
 
 	metric.current.posDegrees = new_pos;
-	int32_t scaled_pos = scaleEncValue(new_pos, degreesOfRotation);
-	metric.current.pos = scaled_pos;
-
 	metric.current.speedInstant = (new_pos - metric.previous.posDegrees) * 1000.0; // deg/s
-
 	metric.current.speed = speedFilter.process(metric.current.speedInstant);
-
-	metric.current.accelInstant = metric.current.speedInstant - metric.previous.speedInstant;
-	metric.current.accel = accelFilter.process(metric.current.accelInstant); //accel_avg.getAverage(); //accel_avg.getAverage();
+	//metric.current.accelInstant = metric.current.speedInstant - metric.previous.speedInstant;
+	metric.current.accelInstant = metric.current.speed - metric.previous.speed;
+	metric.current.accel = accelFilter.process(metric.current.accelInstant);
 
 	metric.current.torque = 0;
 
@@ -560,7 +569,7 @@ void Axis::setEffectTorque(double torque) {
 
 // pass in ptr to receive the sum of the effects + endstop torque
 // return true if torque is clipping
-bool Axis::updateTorque(int32_t* totalTorque) {
+int32_t Axis::getTotalTorque() {
 
 	if ((HAL_GetTick() - lastSetEffectTorque) > effectTorqueTimeout) effectTorqueScaler = 0.0;
 
@@ -568,38 +577,6 @@ bool Axis::updateTorque(int32_t* totalTorque) {
 	torque += effectTorque * effectTorqueScaler * torqueScaler;
 	torque += updateEndstop();
 
-	torque = notchFilter.process(torque);
-/*
-	// TODO speed and accel limiters
-	if(maxSpeedDegS > 0){
-
-		double torqueSign = torque > 0 ? 1 : -1; // Used to prevent metrics against the force to go into the limiter
-		// Speed. Mostly tuned...
-		spdlimiterAvg.addValue(metric.current.speedInstant);
-		double speedreducer = (double)((spdlimiterAvg.getAverage()*torqueSign) - (double)maxSpeedDegS) * getSpeedScalerNormalized();
-		spdlimitreducerI = clip<double,int32_t>( spdlimitreducerI + ((speedreducer * 0.015) * torqueScaler),0,power);
-
-		// Accel limit. Not really useful. Maybe replace with torque slew rate limit?
-//		double accreducer = (double)((metric.current.accel*torqueSign) - (double)maxAccelDegSS) * getAccelScalerNormalized();
-//		acclimitreducerI = clip<double,int32_t>( acclimitreducerI + ((accreducer * 0.02) * torqueScaler),0,power);
-
-
-		// Only reduce torque. Don't invert it to prevent oscillation
-		double torqueReduction = spdlimitreducerI + speedreducer * 0.025;// accreducer * 0.025 + acclimitreducerI
-		if(torque > 0){
-			torqueReduction = clip<double,int32_t>(torqueReduction,0,torque);
-		}else{
-			torqueReduction = clip<double,int32_t>(-torqueReduction,torque,0);
-		}
-
-		torque -= torqueReduction;
-	}
-	// Torque slew rate limiter
-	if(maxTorqueRateMS > 0){
-		torque = clip<int32_t,int32_t>(torque, metric.previous.torque - maxTorqueRateMS,metric.previous.torque + maxTorqueRateMS);
-	}
-	*/
-//	if(torque - metric.previous.torque)
 	if(outOfBounds){
 		torque = 0.0;
 	}
@@ -609,10 +586,7 @@ bool Axis::updateTorque(int32_t* totalTorque) {
 	finalTorque = clip<int32_t, int32_t>(finalTorque, -power, power);
 	metric.current.torque = finalTorque;
 
-	bool torqueChanged = finalTorque != metric.previous.torque;
-
-	*totalTorque = finalTorque;
-	return (torqueChanged);
+	return finalTorque;
 }
 
 void Axis::setDegrees(uint16_t degrees){
@@ -692,7 +666,29 @@ CommandStatus Axis::command(const ParsedCommand& cmd,std::vector<CommandReply>& 
 		}
 		else if (cmd.type == CMDtype::set)
 		{
-			setDamperStrength(cmd.val);
+			damperIntensity = cmd.val;
+		}
+		break;
+
+	case Axis_commands::axisinertia:
+		if (cmd.type == CMDtype::get)
+		{
+			replies.emplace_back(inertiaIntensity);
+		}
+		else if (cmd.type == CMDtype::set)
+		{
+			inertiaIntensity = cmd.val;
+		}
+		break;
+
+	case Axis_commands::axisfriction:
+		if (cmd.type == CMDtype::get)
+		{
+			replies.emplace_back(frictionIntensity);
+		}
+		else if (cmd.type == CMDtype::set)
+		{
+			frictionIntensity = cmd.val;
 		}
 		break;
 
@@ -731,16 +727,6 @@ CommandStatus Axis::command(const ParsedCommand& cmd,std::vector<CommandReply>& 
 		}
 		break;
 
-	case Axis_commands::notchf:
-		handleGetSet(cmd, replies, this->notchf);
-		if (cmd.type == CMDtype::set) setNotchFilter();
-		break;
-
-	case Axis_commands::notchq:
-		handleGetSet(cmd, replies, this->notchq);
-		if (cmd.type == CMDtype::set) setNotchFilter();
-		break;
-
 	case Axis_commands::fxratio:
 		if(cmd.type == CMDtype::get){
 			replies.emplace_back(this->fx_ratio_i);
@@ -750,15 +736,12 @@ CommandStatus Axis::command(const ParsedCommand& cmd,std::vector<CommandReply>& 
 		break;
 
 	case Axis_commands::curpos:
-		replies.emplace_back(this->metric.current.pos);
+		//replies.emplace_back(this->metric.current.pos);
+		replies.emplace_back(std::to_string(this->metric.current.posDegrees));
 		break;
 	case Axis_commands::curtorque:
 		replies.emplace_back(this->metric.current.torque);
 		break;
-	case Axis_commands::delta_us:
-		replies.emplace_back(this->metric.current.delta * 1000000.0);
-		break;
-
 	default:
 		return CommandStatus::NOT_FOUND;
 	}

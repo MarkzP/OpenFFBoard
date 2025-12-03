@@ -60,6 +60,9 @@ public:
 	void setEffectsArray(FFB_Effect* pEffects);
 	FFB_Effect* effects = nullptr; // ptr to effects array in HidFFB
 
+	static constexpr double calcfrequency = 10000.0;
+	static constexpr double nyquist = calcfrequency * 0.5;
+
 protected:
 
 private:
@@ -67,11 +70,10 @@ private:
 // Filters
 	bool effects_active = false; // was ffb_active
 	double global_gain = 1.0;
-	double damper_f = 30.0 , damper_q = 0.4;
-	double friction_f = 50.0 , friction_q = 0.2; //50 0.2
-	double inertia_f = 15.0 , inertia_q = 0.2;
-	const uint32_t calcfrequency = 1000; // HID frequency 1khz
-	uint32_t cfFilter_f = calcfrequency/2; // 500 = off
+	const double damper_f = 30.0 , damper_q = 0.4;
+	const double friction_f = 50.0 , friction_q = 0.2; //50 0.2
+	const double inertia_f = 5.0 , inertia_q = 0.3;
+	uint32_t cfFilter_f = (uint32_t)nyquist;
 	uint8_t cfFilter_q = 70; // User settable. q * 10
 	const double cfFilter_qdoubleScaler = 0.01;
 
@@ -79,7 +81,7 @@ private:
 	const double spring_scaler = 16.0;
 	const double friction_scaler = 2.0;
 	const double damper_scaler = 2.0;
-	const double inertia_scaler = 200.0;
+	const double inertia_scaler = 100.0;
 
 	effect_gain_t gain;
 

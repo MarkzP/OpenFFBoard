@@ -138,7 +138,6 @@ void FFBHIDMain::saveFlash(){
 
 void FFBHIDMain::Run(){
 	while(true){
-		DelayUntil(1);
 		updateControl();
 	}
 }
@@ -148,12 +147,15 @@ void FFBHIDMain::Run(){
  */
 
 void FFBHIDMain::updateControl(){
+
+
 	if(control.request_update_disabled) {
 		//logSerial("request update disabled");
 		control.update_disabled = true;
 		control.request_update_disabled = false;
 
 	}
+
 	if(control.update_disabled){
 		//logSerial("Update disabled");
 		return;
@@ -167,10 +169,16 @@ void FFBHIDMain::updateControl(){
 
 	axes_manager->update();
 
-	if(++report_rate_cnt >= usb_report_rate){
-		report_rate_cnt = 0;
-		this->send_report();
+	uint32_t currentTick = HAL_GetTick();
+	if (currentTick != lastReportTick)
+	{
+		lastReportTick = currentTick;
+		if(++report_rate_cnt >= usb_report_rate){
+			report_rate_cnt = 0;
+			this->send_report();
+		}
 	}
+
 	if(!control.emergency){
 		axes_manager->updateTorque();
 

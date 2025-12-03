@@ -44,6 +44,7 @@ struct AxisFlashAddrs
 	uint16_t power = ADR_AXIS1_POWER;
 	uint16_t degrees = ADR_AXIS1_DEGREES;
 	uint16_t effects1 = ADR_AXIS1_EFFECTS1;
+	uint16_t effects2 = ADR_AXIS1_EFFECTS2;
 };
 
 struct AxisConfig
@@ -53,8 +54,6 @@ struct AxisConfig
 	//bool invert = false;
 };
 struct metric_t {
-	uint32_t time = 0;
-	double delta = 0.0;
 	double accel = 0;	// in deg/s²
 	double accelInstant = 0;
 	double speed = 0;
@@ -67,12 +66,22 @@ struct metric_t {
 
 struct axis_metric_t {
 	metric_t current;
+	metric_t previous_0;
+	metric_t previous_1;
+	metric_t previous_2;
+	metric_t previous_3;
+	metric_t previous_4;
+	metric_t previous_5;
+	metric_t previous_6;
+	metric_t previous_7;
+	metric_t previous_8;
+	metric_t previous_9;
 	metric_t previous;
 };
 
 
 enum class Axis_commands : uint32_t{
-	power=0x00,degrees=0x01,esgain,zeroenc,invert,idlespring,axisdamper,enctype,drvtype,pos,notchf,notchq,fxratio,curtorque,curpos,delta_us
+	power=0x00,degrees=0x01,esgain,zeroenc,invert,idlespring,axisdamper,axisinertia,axisfriction,enctype,drvtype,pos,fxratio,curtorque,curpos
 };
 
 class Axis : public PersistentStorage, public CommandHandler, public ErrorHandler
@@ -136,7 +145,6 @@ public:
 	void updateMetrics(double new_pos);
 	double updateIdleSpringForce();
 	void setIdleSpringStrength(uint8_t spring);
-	void setDamperStrength(uint8_t damper);
 	void calculateAxisEffects(bool ffb_on);
 	int32_t getTorque(); // current torque scaled as a 32 bit signed value
 	double updateEndstop();
@@ -146,11 +154,11 @@ public:
 	//double	 getAccelScalerNormalized();
 
 	const uint32_t effectTorqueTimeout = 5000;
-	const double effectTorqueRamp = 1.0 / 500.0;
+	const double effectTorqueRamp = 1.0 / 5000.0;
 	double effectTorqueScaler = 0.0;
 	uint32_t lastSetEffectTorque;
 	void setEffectTorque(double torque);
-	bool updateTorque(int32_t* totalTorque);
+	int32_t getTotalTorque();
 
 
 
@@ -241,20 +249,19 @@ private:
 	double idlespringscale = 0.0f;
 	bool idle_center = false;
 
-	double speed_f = 20.0 , speed_q = 0.7;
-	double accel_f = 120.0 , accel_q = 0.3;
-	const double filter_f = 1000.0f; // 1khz
+	double speed_f = 25.0 , speed_q = 0.7;
+	double accel_f = 10.0 , accel_q = 0.2;
 	const double damperClip = 15000.0f;
-	uint8_t damperIntensity = 30;
-	Biquad speedFilter = Biquad(BiquadType::lowpass, speed_f/filter_f, speed_q, 0.0);
-	Biquad accelFilter = Biquad(BiquadType::lowpass, accel_f/filter_f, accel_q, 0.0);
+	uint8_t damperIntensity = 0;
+	uint8_t inertiaIntensity = 0;
+	uint8_t frictionIntensity = 0;
+	Biquad speedFilter = Biquad(BiquadType::lowpass_1p1z, speed_f / EffectsCalculator::calcfrequency, speed_q, 0.0);
+	Biquad accelFilter = Biquad(BiquadType::lowpass_1p1z, accel_f / EffectsCalculator::calcfrequency, accel_q, 0.0);
 	//Biquad limitsFilter = Biquad(BiquadType::lowpass, 20/filter_f, 0.4, 0.0);
 	FastAvg<double,8> spdlimiterAvg;
 
-	uint16_t notchf = 0;
-	uint16_t notchq = 0;
-	Biquad notchFilter = Biquad(BiquadType::bypass, 0.5f, 1.0f, 0.0f);
-	void setNotchFilter();
+	Biquad damperFilter = Biquad(BiquadType::lowpass_1p1z, 10.0 / EffectsCalculator::calcfrequency, 0.5, 0.0);
+	Biquad inertiaFilter = Biquad(BiquadType::lowpass_1p1z, 5.0 / EffectsCalculator::calcfrequency, 0.5, 0.0);
 
 	void setFxRatio(uint8_t val);
 	void updateTorqueScaler();

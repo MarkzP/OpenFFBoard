@@ -29,6 +29,7 @@ public:
 	MotorMPM();
 	virtual ~MotorMPM();
 
+	// MotorDriver
 	static ClassIdentifier info;
 	const ClassIdentifier getInfo();
 	static bool isCreatable();
@@ -36,52 +37,55 @@ public:
 	Encoder* getEncoder() override;
 	bool hasIntegratedEncoder() override;
 
-	void turn(int16_t power);
-	void stopMotor();
-	void startMotor();
+	void turn(int16_t power) override;
+	void stopMotor() override;
+	void startMotor() override;
+	bool motorReady() override;
 
-	bool motorReady();
+	// Encoder
+	int32_t getPos() override;
+	double getPos_f() override;
+	void setPos(int32_t pos) override;
+	uint32_t getCpr() override; // Encoder counts per rotation
 
-	int32_t getPos();
-	double getPosAbs_f();
-	void setPos(int32_t pos);
+	// ExtiHandler
+	void exti(uint16_t GPIO_Pin) override;
 
-	uint32_t getCpr(); // Encoder counts per rotation
+	// SpiHandler
+	void SpiTxRxCplt(SPI_HandleTypeDef *hspi) override;
+	void SpiError(SPI_HandleTypeDef *hspi) override;
 
-	void exti(uint16_t GPIO_Pin);
-	void SpiTxRxCplt(SPI_HandleTypeDef *hspi);
-	void SpiError(SPI_HandleTypeDef *hspi);
+	// CommandHandler
+	CommandStatus command(const ParsedCommand& cmd,std::vector<CommandReply>& replies) override;
+	virtual std::string getHelpstring() override {return "MPM SPI motor driver";}
 
-	CommandStatus command(const ParsedCommand& cmd,std::vector<CommandReply>& replies);
-	virtual std::string getHelpstring(){return "MPM SPI motor driver";}
-
-	void saveFlash();
-	void restoreFlash();
-
-	static bool mpmDriverInUse;
+	// PersistentStorage
+	void saveFlash() override;
+	void restoreFlash() override;
 
 private:
-	volatile uint16_t rawPosition;
+	static bool mpmDriverInUse;
+
 	int32_t encoderAngle;
 	int32_t lastEncoderAngle;
 	int16_t torque;
-	float rawTorque;
-	int32_t position;
 	int32_t rotation;
 	int32_t offset;
-	bool ready = false;
-	bool sync = false;
-	bool aligned = false;
-	volatile bool positionChanged = false;
 
-	int spiErrors = 0;
+	static constexpr int realignCount = 5;
+	int align = realignCount;
+	inline void dealign() { align = realignCount; }
+	inline bool aligned() { return align == 0; }
+	inline bool alignCompleted() { return --align == 0; }
 
 	SPI_HandleTypeDef *spi;
 
-	volatile uint16_t spiTx;
-	volatile uint16_t spiRx;
+	int32_t position;
+	uint16_t spiTx;
+	uint16_t spiRx;
 
-	volatile bool enabled = false;
+	int spiErrors = 0;
+	bool enabled = false;
 
 	TaskHandle_t xTaskToNotify = nullptr;
 };

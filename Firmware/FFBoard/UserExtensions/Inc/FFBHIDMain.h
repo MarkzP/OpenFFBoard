@@ -98,6 +98,7 @@ private:
 	std::string usb_report_rates_names();
 
 	uint8_t report_rate_cnt = 0;
+	uint32_t lastReportTick = 0;
 
 	std::unique_ptr<HidFFB> ffb;
 	std::unique_ptr<AxesManager> axes_manager;

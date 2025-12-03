@@ -94,14 +94,6 @@ have no effect on joystick motion in the northwest-southeast direction.
  */
 void EffectsCalculator::calculateEffects(std::vector<std::unique_ptr<Axis>> &axes)
 {
-	for (auto &axis : axes) {
-		axis->calculateAxisEffects(isActive());
-	}
-
-	if(!isActive()){
-	 return;
-	}
-
 	double forceX = 0;
 	double forceY = 0;
 	uint8_t axisCount = (uint8_t)axes.size();
@@ -110,6 +102,16 @@ void EffectsCalculator::calculateEffects(std::vector<std::unique_ptr<Axis>> &axe
 	int32_t forceZ = 0;
 	bool validZ = axisCount > 2;
 #endif
+
+	axes[0]->calculateAxisEffects(isActive());
+	if (validY)
+	{
+		axes[1]->calculateAxisEffects(isActive());
+	}
+
+	if(!isActive()){
+	 return;
+	}
 
 	for (uint8_t i = 0; i < MAX_EFFECTS; i++)
 	{
@@ -134,11 +136,7 @@ void EffectsCalculator::calculateEffects(std::vector<std::unique_ptr<Axis>> &axe
 			continue;
 		}
 
-
-		//if (effect->conditionsCount == 0) {
 		double forceVector = calcNonConditionEffectForce(effect);
-		//}
-
 
 		uint8_t directionEnableMask = this->directionEnableMask ? this->directionEnableMask : DIRECTION_ENABLE(axisCount);
 
@@ -152,13 +150,10 @@ void EffectsCalculator::calculateEffects(std::vector<std::unique_ptr<Axis>> &axe
 		}
 	}
 
-	forceX = clip<double, double>(forceX, (double)-0x7fff, (double)0x7fff); // Clip
-
-	axes[0]->setEffectTorque((int32_t)forceX);
+	axes[0]->setEffectTorque(forceX);
 	if (validY)
 	{
-		forceY = clip<double, double>(forceY, (double)-0x7fff, (double)0x7fff); // Clip
-		axes[1]->setEffectTorque((int32_t)forceY);
+		axes[1]->setEffectTorque(forceY);
 	}
 }
 
@@ -186,7 +181,7 @@ double EffectsCalculator::calcNonConditionEffectForce(FFB_Effect *effect) {
 	{
 		double elapsed_time = (double)(HAL_GetTick() - effect->startTime);
 		double duration = (double)effect->duration;
-		force_vector = effect->startLevel + ((int32_t)elapsed_time * (effect->endLevel - effect->startLevel)) / duration;
+		force_vector = effect->startLevel + (elapsed_time * (effect->endLevel - effect->startLevel)) / duration;
 		break;
 	}
 
@@ -316,18 +311,20 @@ double EffectsCalculator::calcComponentForce(FFB_Effect *effect, double forceVec
 		con_idx = axis;
 	}
 
-	//bool useForceDirectionForConditionEffect = (effect->enableAxis == DIRECTION_ENABLE && axisCount > 1 && effect->conditionsCount == 1);
+	double angle_ratio = 1.0;
 	bool rotateConditionForce = (axisCount > 1); // && effect->conditionsCount < axisCount
-	double angle = ((double)direction * (2.0 * M_PI) / 36000.0);
-	double angle_ratio = axis == 0 ? sin(angle) : -1.0 * cos(angle);
-	angle_ratio = rotateConditionForce ? angle_ratio : 1.0;
+	if (rotateConditionForce)
+	{
+		double angle = ((double)direction * (2.0 * M_PI) / 36000.0);
+		angle_ratio = axis == 0 ? sin(angle) : -1.0 * cos(angle);
+	}
 
 	switch (effect->type)
 	{
 	case FFB_EFFECT_CONSTANT:
 	{
 		// Optional filtering to reduce spikes
-		if (cfFilter_f < calcfrequency / 2 && cfFilter_f != 0 )
+		if (cfFilter_f > 0.0)
 		{
 			forceVector = effect->filter[con_idx]->process(forceVector);
 		}
@@ -490,33 +487,34 @@ void EffectsCalculator::setFilters(FFB_Effect *effect){
 	case FFB_EFFECT_DAMPER:
 		fnptr = [=](std::unique_ptr<Biquad> &filter){
 			if (filter != nullptr)
-				filter->setBiquad(BiquadType::lowpass, (double)damper_f / (double)calcfrequency, damper_q, (double)0.0);
+				filter->setBiquad(BiquadType::lowpass_1p1z, damper_f / calcfrequency, damper_q, 0.0);
 			else
-				filter = std::make_unique<Biquad>(BiquadType::lowpass, (double)damper_f / (double)calcfrequency, damper_q, (double)0.0);
+				filter = std::make_unique<Biquad>(BiquadType::lowpass_1p1z, damper_f / calcfrequency, damper_q, 0.0);
 		};
 		break;
 	case FFB_EFFECT_FRICTION:
 		fnptr = [=](std::unique_ptr<Biquad> &filter){
 			if (filter != nullptr)
-				filter->setBiquad(BiquadType::lowpass, (double)friction_f / (double)calcfrequency, friction_q, (double)0.0);
+				filter->setBiquad(BiquadType::lowpass_1p1z, friction_f / calcfrequency, friction_q, 0.0);
 			else
-				filter = std::make_unique<Biquad>(BiquadType::lowpass, (double)friction_f / (double)calcfrequency, friction_q, (double)0.0);
+				filter = std::make_unique<Biquad>(BiquadType::lowpass_1p1z, friction_f / calcfrequency, friction_q, 0.0);
 		};
 		break;
 	case FFB_EFFECT_INERTIA:
 		fnptr = [=](std::unique_ptr<Biquad> &filter){
 			if (filter != nullptr)
-				filter->setBiquad(BiquadType::lowpass, (double)inertia_f / (double)calcfrequency, inertia_q, (double)0.0);
+				filter->setBiquad(BiquadType::lowpass_1p1z, inertia_f / calcfrequency, inertia_q, 0.0);
 			else
-				filter = std::make_unique<Biquad>(BiquadType::lowpass, (double)inertia_f / (double)calcfrequency, inertia_q, (double)0.0);
+				filter = std::make_unique<Biquad>(BiquadType::lowpass_1p1z, inertia_f / calcfrequency, inertia_q, 0.0);
 		};
 		break;
 	case FFB_EFFECT_CONSTANT:
 		fnptr = [=](std::unique_ptr<Biquad> &filter){
+			BiquadType ftype = cfFilter_f == 0 ? BiquadType::bypass : cfFilter_q == 0 ? BiquadType::lowpass_1p1z : BiquadType::lowpass;
 			if (filter != nullptr)
-				filter->setBiquad(BiquadType::lowpass, (double)cfFilter_f / (double)calcfrequency, cfFilter_qdoubleScaler * (cfFilter_q+1), (double)0.0);
+				filter->setBiquad(ftype, (double)cfFilter_f / calcfrequency, cfFilter_qdoubleScaler * (double)(cfFilter_q+1), 0.0);
 			else
-				filter = std::make_unique<Biquad>(BiquadType::lowpass, (double)cfFilter_f / (double)calcfrequency, cfFilter_qdoubleScaler * (cfFilter_q+1), (double)0.0);
+				filter = std::make_unique<Biquad>(ftype, (double)cfFilter_f / calcfrequency, cfFilter_qdoubleScaler * (double)(cfFilter_q+1), 0.0);
 		};
 		break;
 	}
@@ -583,23 +581,13 @@ void EffectsCalculator::setCfFilter(uint32_t freq,uint8_t q)
 {
 	this->cfFilter_q = clip<uint8_t, uint8_t>(q,0,127);
 
-	if(freq == 0){
-		freq = calcfrequency / 2;
-	}
-	cfFilter_f = clip<uint32_t, uint32_t>(freq, 1, (calcfrequency / 2));
-	//double f = (double)cfFilter_f / (double)calcfrequency;
+	cfFilter_f = clip<uint32_t, uint32_t>(freq, 0, (uint32_t)nyquist);
 
 	for (uint8_t i = 0; i < MAX_EFFECTS; i++)
 	{
 		if (effects[i].type == FFB_EFFECT_CONSTANT)
 		{
 			setFilters(&effects[i]);
-			//for(uint8_t ax = 0;ax<MAX_AXIS;ax++){
-
-//				effects[i].filter[ax]->setFc(f);
-//				effects[i].filter[ax]->setQ(cfFilter_qdoubleScaler * (cfFilter_q+1));
-		//	}
-
 		}
 	}
 }
